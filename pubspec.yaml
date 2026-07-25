@@ -1,0 +1,76 @@
+name: enervara
+description: "Enervara — hospital-grade care, zero waiting rooms. Mobile app."
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.9.2
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+
+  # State management
+  flutter_riverpod: ^2.6.1
+
+  # Routing
+  go_router: ^14.6.2
+
+  # Networking
+  dio: ^5.7.0
+
+  # Storage
+  flutter_secure_storage: ^9.2.2
+  shared_preferences: ^2.3.3
+
+  # UI
+  google_fonts: ^6.2.1
+  phosphor_flutter: ^2.1.0
+
+  # Utils
+  intl: ^0.20.2
+
+  # Media / files
+  image_picker: ^1.1.2
+  file_picker: ^8.1.7
+
+  # Emergency dialer + external links
+  url_launcher: ^6.3.1
+
+  # Opening downloaded reports in the OS viewer
+  open_filex: ^4.5.0
+  path_provider: ^2.1.5
+  firebase_core: ^4.12.1
+  firebase_messaging: ^16.4.3
+  flutter_local_notifications: ^20.1.0
+  firebase_auth: ^6.5.6
+  google_sign_in: ^7.2.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+  flutter_launcher_icons: ^0.14.3
+
+# App launcher icon — generated from the brand logo.
+# Regenerate with: dart run flutter_launcher_icons
+flutter_launcher_icons:
+  android: true
+  ios: true
+  remove_alpha_ios: true
+  image_path: "assets/images/logo.png"
+  min_sdk_android: 21
+  background_color_ios: "#EEF4F1"
+  adaptive_icon_background: "#EEF4F1"
+  adaptive_icon_foreground: "assets/images/logo.png"
+  web:
+    generate: true
+    image_path: "assets/images/logo.png"
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/images/
+    - assets/images/specialities/
+    - assets/data/

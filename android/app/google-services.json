@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "585113598278",
+    "project_id": "health-81575",
+    "storage_bucket": "health-81575.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:585113598278:android:3b811048248f103e964d47",
+        "android_client_info": {
+          "package_name": "com.enervara.enervara"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "585113598278-uvn4vmcreqvtrtlina9v27i73lsf0c2r.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCGTRcaj2WzMy3U1xIbhWSt_lZ5stHQ4Rg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "585113598278-uvn4vmcreqvtrtlina9v27i73lsf0c2r.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
