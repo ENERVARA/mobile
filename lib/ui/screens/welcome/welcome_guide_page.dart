@@ -53,6 +53,12 @@ const _slides = <_Slide>[
     body:
         'Upload medical reports to keep them at hand, and reach emergency services in a single tap when it matters.',
   ),
+  _Slide(
+    tint: [AppColors.tealD, AppColors.lav],
+    title: 'Your data, protected',
+    body:
+        'Your health information is encrypted, securely stored, and handled in accordance with HIPAA standards and the Digital Personal Data Protection (DPDP) Act, 2023.',
+  ),
 ];
 
 /// First-run feature tour shown to brand-new users right after login (before

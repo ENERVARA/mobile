@@ -95,8 +95,10 @@ class _SlideIllustrationState extends State<SlideIllustration>
               return _specialities(context, i, a);
             case 3:
               return _privacy(context, i, a, widget.tint);
-            default:
+            case 4:
               return _records(context, i, a, widget.tint);
+            default:
+              return _dataProtected(context, i, a, widget.tint);
           }
         },
       ),
@@ -638,6 +640,157 @@ Widget _emergencyBadge(double i, double a) {
                 ],
               ),
               child: const Icon(PhosphorIconsFill.plus, size: 24, color: Colors.white),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+// ── 5 · Data protection — encrypted core inside a ring of ciphered data ──────
+
+Widget _dataProtected(BuildContext context, double i, double a, List<Color> tint) {
+  final t = context.tokens;
+  final coreIntro = _seg(i, 0.0, 0.34, Curves.easeOutBack);
+  const badges = <(String, double)>[('HIPAA', 0.0), ('DPDP 2023', 0.11)];
+  return Stack(
+    alignment: Alignment.center,
+    clipBehavior: Clip.none,
+    children: [
+      // soft halo breathing behind the vault
+      Transform.translate(
+        offset: const Offset(0, -18),
+        child: Transform.scale(
+          scale: 1 + 0.04 * _wave(a),
+          child: Container(
+            width: 176,
+            height: 176,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: RadialGradient(
+                colors: [tint.first.withValues(alpha: 0.15 * i), Colors.transparent],
+                stops: const [0.32, 1.0],
+              ),
+            ),
+          ),
+        ),
+      ),
+
+      // slowly rotating ring of "ciphered" dashes
+      Transform.translate(
+        offset: const Offset(0, -18),
+        child: Transform.rotate(
+          angle: a * 2 * math.pi * 0.2,
+          child: SizedBox(
+            width: 152,
+            height: 152,
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                for (var d = 0; d < 12; d++) _cipherDash(i, a, d, 12, tint),
+              ],
+            ),
+          ),
+        ),
+      ),
+
+      // the encrypted core
+      Transform.translate(
+        offset: Offset(0, -18 + _wave(a) * 3),
+        child: Opacity(
+          opacity: _seg(i, 0.0, 0.3),
+          child: Transform.scale(
+            scale: 0.7 + 0.3 * coreIntro,
+            child: _glowDisc(
+              size: 88,
+              tint: tint,
+              glow: 0.32 + 0.12 * _pulse(a),
+              child: const Icon(PhosphorIconsFill.lockKey, size: 42, color: Colors.white),
+            ),
+          ),
+        ),
+      ),
+
+      // compliance badges settling in underneath
+      Positioned(
+        bottom: 2,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            for (final b in badges)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                child: _complianceBadge(i, b.$1, b.$2, t, tint),
+              ),
+          ],
+        ),
+      ),
+    ],
+  );
+}
+
+/// One dash on the rotating ring — reads as a fragment of encrypted data.
+Widget _cipherDash(double i, double a, int idx, int n, List<Color> tint) {
+  final angle = idx * 2 * math.pi / n;
+  const radius = 70.0;
+  final appear = _seg(i, 0.12 + idx * 0.04, 0.4 + idx * 0.04);
+  if (appear <= 0) return const SizedBox.shrink();
+  // Each dash twinkles on its own phase, so the ring never reads as static.
+  final twinkle = 0.3 + 0.7 * _pulse(a, idx * 0.9);
+  return Transform.translate(
+    offset: Offset(math.cos(angle) * radius, math.sin(angle) * radius),
+    child: Transform.rotate(
+      angle: angle + math.pi / 2,
+      child: Opacity(
+        opacity: (appear * twinkle * 0.75).clamp(0.0, 1.0),
+        child: Container(
+          width: 5,
+          height: idx.isEven ? 13 : 8,
+          decoration: BoxDecoration(
+            color: idx.isEven ? tint.first : tint.last,
+            borderRadius: BorderRadius.circular(3),
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+Widget _complianceBadge(double i, String label, double delay, dynamic t, List<Color> tint) {
+  final appear = _seg(i, 0.58 + delay, 0.86 + delay, Curves.easeOutBack);
+  if (appear <= 0) return const SizedBox.shrink();
+  return Opacity(
+    opacity: appear.clamp(0.0, 1.0),
+    child: Transform.translate(
+      offset: Offset(0, (1 - appear) * 12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: t.card,
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: t.line),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.06),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(PhosphorIconsFill.sealCheck, size: 15, color: tint.first),
+            const SizedBox(width: 5),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.2,
+                color: t.ink2,
+              ),
             ),
           ],
         ),
