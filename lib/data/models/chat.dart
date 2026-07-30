@@ -25,7 +25,8 @@ class ChatConversation {
       sessionId: (json['sessionId'] ?? '') as String,
       specialitySlug: (json['specialitySlug'] ?? '') as String,
       title: (json['title'] ?? 'New chat') as String,
-      lastMessageAt: (json['lastMessageAt'] ?? json['createdAt'] ?? '') as String,
+      lastMessageAt:
+          (json['lastMessageAt'] ?? json['createdAt'] ?? '') as String,
       createdAt: (json['createdAt'] ?? '') as String,
       blocksEnabled: json['blocksEnabled'] == true,
     );
@@ -65,12 +66,14 @@ abstract class MessageBlock {
       case 'condition_list':
         final conditions = (data['conditions'] is List)
             ? (data['conditions'] as List)
-                .whereType<Map>()
-                .map((c) => ConditionEntry(
+                  .whereType<Map>()
+                  .map(
+                    (c) => ConditionEntry(
                       name: c['name']?.toString() ?? '',
                       likelihood: c['likelihood']?.toString(),
-                    ))
-                .toList()
+                    ),
+                  )
+                  .toList()
             : <ConditionEntry>[];
         return ConditionListBlock(conditions);
       case 'warning':
@@ -81,7 +84,10 @@ abstract class MessageBlock {
       case 'next_steps':
         return NextStepsBlock(strList(data['steps']));
       case 'bullet_list':
-        return BulletListBlock(title: data['title']?.toString(), items: strList(data['items']));
+        return BulletListBlock(
+          title: data['title']?.toString(),
+          items: strList(data['items']),
+        );
       case 'key_points':
         return KeyPointsBlock(strList(data['points']));
       case 'decision':
@@ -92,16 +98,32 @@ abstract class MessageBlock {
       case 'otc_medications':
         final meds = (data['medications'] is List)
             ? (data['medications'] as List)
-                .whereType<Map>()
-                .map((m) => OtcMedication(
+                  .whereType<Map>()
+                  .map(
+                    (m) => OtcMedication(
                       name: m['name']?.toString() ?? '',
                       purpose: m['purpose']?.toString() ?? '',
                       dosage: m['dosage']?.toString(),
                       caution: m['caution']?.toString(),
-                    ))
-                .toList()
+                    ),
+                  )
+                  .toList()
             : <OtcMedication>[];
         return OtcMedicationsBlock(meds);
+      case 'lab_tests':
+        final tests = (data['tests'] is List)
+            ? (data['tests'] as List)
+                  .whereType<Map>()
+                  .map(
+                    (t) => LabTest(
+                      name: t['name']?.toString() ?? '',
+                      reason: t['reason']?.toString() ?? '',
+                      urgency: t['urgency']?.toString(),
+                    ),
+                  )
+                  .toList()
+            : <LabTest>[];
+        return LabTestsBlock(tests);
       case 'follow_up_questions':
         return FollowUpQuestionsBlock(strList(data['questions']));
       default:
@@ -140,7 +162,8 @@ class NextStepsBlock extends MessageBlock {
 class BulletListBlock extends MessageBlock {
   final String? title;
   final List<String> items;
-  const BulletListBlock({this.title, required this.items}) : super('bullet_list');
+  const BulletListBlock({this.title, required this.items})
+    : super('bullet_list');
 }
 
 class KeyPointsBlock extends MessageBlock {
@@ -149,9 +172,11 @@ class KeyPointsBlock extends MessageBlock {
 }
 
 class DecisionBlock extends MessageBlock {
-  final String verdict; // yes | no | possibly | seek_urgent_care | insufficient_information
+  final String
+  verdict; // yes | no | possibly | seek_urgent_care | insufficient_information
   final String rationale;
-  const DecisionBlock({required this.verdict, required this.rationale}) : super('decision');
+  const DecisionBlock({required this.verdict, required this.rationale})
+    : super('decision');
 }
 
 class OtcMedication {
@@ -159,12 +184,29 @@ class OtcMedication {
   final String purpose;
   final String? dosage;
   final String? caution;
-  const OtcMedication({required this.name, required this.purpose, this.dosage, this.caution});
+  const OtcMedication({
+    required this.name,
+    required this.purpose,
+    this.dosage,
+    this.caution,
+  });
 }
 
 class OtcMedicationsBlock extends MessageBlock {
   final List<OtcMedication> medications;
   const OtcMedicationsBlock(this.medications) : super('otc_medications');
+}
+
+class LabTest {
+  final String name;
+  final String reason;
+  final String? urgency; // routine | soon | urgent
+  const LabTest({required this.name, required this.reason, this.urgency});
+}
+
+class LabTestsBlock extends MessageBlock {
+  final List<LabTest> tests;
+  const LabTestsBlock(this.tests) : super('lab_tests');
 }
 
 class FollowUpQuestionsBlock extends MessageBlock {
@@ -186,7 +228,12 @@ class MessageAnalysis {
   final String? caption;
   final List<String> extractedFacts;
 
-  const MessageAnalysis({this.category, this.route, this.caption, this.extractedFacts = const []});
+  const MessageAnalysis({
+    this.category,
+    this.route,
+    this.caption,
+    this.extractedFacts = const [],
+  });
 
   factory MessageAnalysis.fromJson(Map<String, dynamic> json) {
     return MessageAnalysis(
@@ -238,16 +285,20 @@ class ChatMessage {
       role: (json['role'] ?? 'assistant') as String,
       content: (json['content'] ?? '') as String,
       followupQuestions: (json['followupQuestions'] is List)
-          ? (json['followupQuestions'] as List).map((e) => e.toString()).toList()
+          ? (json['followupQuestions'] as List)
+                .map((e) => e.toString())
+                .toList()
           : null,
       blocks: (json['blocks'] is List)
           ? (json['blocks'] as List)
-              .whereType<Map>()
-              .map((b) => MessageBlock.fromJson(Map<String, dynamic>.from(b)))
-              .toList()
+                .whereType<Map>()
+                .map((b) => MessageBlock.fromJson(Map<String, dynamic>.from(b)))
+                .toList()
           : null,
       analysis: (json['analysis'] is Map)
-          ? MessageAnalysis.fromJson(Map<String, dynamic>.from(json['analysis'] as Map))
+          ? MessageAnalysis.fromJson(
+              Map<String, dynamic>.from(json['analysis'] as Map),
+            )
           : null,
       imageFileId: json['imageFileId'] as String?,
       imageMimeType: json['imageMimeType'] as String?,

@@ -18,13 +18,22 @@ class BlockRenderer extends StatelessWidget {
   Widget build(BuildContext context) {
     final b = block;
     if (b is SummaryBlock) return _summaryBubble(context, b.text);
-    if (b is ConditionListBlock) return _ConditionCards(conditions: b.conditions);
-    if (b is WarningBlock) return _WarningBanner(text: b.text, severity: b.severity);
+    if (b is ConditionListBlock) {
+      return _ConditionCards(conditions: b.conditions);
+    }
+    if (b is WarningBlock) {
+      return _WarningBanner(text: b.text, severity: b.severity);
+    }
     if (b is NextStepsBlock) return _NextSteps(steps: b.steps);
-    if (b is BulletListBlock) return _BulletList(title: b.title, items: b.items);
+    if (b is BulletListBlock) {
+      return _BulletList(title: b.title, items: b.items);
+    }
     if (b is KeyPointsBlock) return _KeyPoints(points: b.points);
-    if (b is DecisionBlock) return _DecisionBanner(verdict: b.verdict, rationale: b.rationale);
+    if (b is DecisionBlock) {
+      return _DecisionBanner(verdict: b.verdict, rationale: b.rationale);
+    }
     if (b is OtcMedicationsBlock) return _OtcMedications(meds: b.medications);
+    if (b is LabTestsBlock) return _LabTests(tests: b.tests);
     if (b is FollowUpQuestionsBlock) return const SizedBox.shrink();
     if (b is UnknownBlock) {
       final t = b.text;
@@ -36,7 +45,8 @@ class BlockRenderer extends StatelessWidget {
 }
 
 /// A solid-teal Nova text bubble (used for `summary` blocks + plain replies).
-Widget novaTextBubble(BuildContext context, String text) => _summaryBubble(context, text);
+Widget novaTextBubble(BuildContext context, String text) =>
+    _summaryBubble(context, text);
 
 /// The Nova bubble — `NOVA_BUBBLE` in MessageList.tsx:
 /// `rounded-[4px_16px_16px_16px] bg-soft … text-ink`.
@@ -60,62 +70,171 @@ Widget _summaryBubble(BuildContext context, String text) {
   );
 }
 
-// ─── Shared card scaffolding ─────────────────────────────────────────────────
+// ─── Shared collapsible card scaffolding ──────────────────────────────────────
 
-Widget _card(BuildContext context, {Widget? header, required Widget body}) {
-  final t = context.tokens;
-  return Container(
-    clipBehavior: Clip.antiAlias,
-    decoration: BoxDecoration(
-      color: t.card,
-      borderRadius: BorderRadius.circular(16),
-      border: Border.all(color: t.line),
-      boxShadow: [
-        BoxShadow(
-          color: AppColors.teal.withValues(alpha: 0.06),
-          blurRadius: 12,
-          offset: const Offset(0, 2),
-        ),
-      ],
-    ),
-    child: Column(
-      mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [if (header != null) header, body],
-    ),
-  );
+/// The card shell used by every structured list block (condition list, next
+/// steps, OTC meds, lab tests, bullet list, key points), with a built-in
+/// collapse/expand affordance:
+///
+/// - [headerToggles] true (Next steps / OTC / Lab tests): the block's own
+///   header IS the tap target, with a chevron that flips as it (dis)closes.
+/// - [headerToggles] false (everything else): the header stays static and a
+///   separate "View more" / "View less" row toggles the body — used when the
+///   block's own label isn't a natural collapse control (or has none at all,
+///   e.g. an untitled bullet list).
+class _CollapsibleCard extends StatefulWidget {
+  final IconData? icon;
+  final String? label;
+  final Widget body;
+  final bool headerToggles;
+
+  const _CollapsibleCard({
+    this.icon,
+    this.label,
+    required this.body,
+    this.headerToggles = true,
+  });
+
+  @override
+  State<_CollapsibleCard> createState() => _CollapsibleCardState();
 }
 
-Widget _cardHeader(BuildContext context, {required IconData icon, required String label}) {
-  final t = context.tokens;
-  return Container(
-    padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
-    decoration: BoxDecoration(
-      color: t.soft,
-      border: Border(bottom: BorderSide(color: t.line)),
-    ),
-    child: Row(
-      children: [
-        Container(
-          width: 22,
-          height: 22,
-          alignment: Alignment.center,
-          decoration: const BoxDecoration(color: AppColors.teal, shape: BoxShape.circle),
-          child: Icon(icon, size: 12, color: Colors.white),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Text(
-            label.toUpperCase(),
-            style: TextStyle(
-              fontSize: 11.5,
-              fontWeight: FontWeight.w700,
-              letterSpacing: 0.6,
-              color: t.ink2,
+class _CollapsibleCardState extends State<_CollapsibleCard> {
+  bool _expanded = false;
+  void _toggle() => setState(() => _expanded = !_expanded);
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final hasLabel = widget.label != null && widget.label!.trim().isNotEmpty;
+    final headerIsToggle = hasLabel && widget.headerToggles;
+
+    Widget? header;
+    if (hasLabel) {
+      final row = Row(
+        children: [
+          Container(
+            width: 22,
+            height: 22,
+            alignment: Alignment.center,
+            decoration: const BoxDecoration(
+              color: AppColors.teal,
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              widget.icon ?? PhosphorIconsBold.info,
+              size: 12,
+              color: Colors.white,
             ),
           ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              widget.label!.toUpperCase(),
+              style: TextStyle(
+                fontSize: 11.5,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 0.6,
+                color: t.ink2,
+              ),
+            ),
+          ),
+          if (headerIsToggle)
+            AnimatedRotation(
+              turns: _expanded ? 0.5 : 0,
+              duration: const Duration(milliseconds: 180),
+              child: Icon(PhosphorIconsBold.caretDown, size: 14, color: t.ink3),
+            ),
+        ],
+      );
+      header = Container(
+        padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
+        decoration: BoxDecoration(
+          color: t.soft,
+          border: Border(bottom: BorderSide(color: t.line)),
         ),
-      ],
+        child: headerIsToggle
+            ? GestureDetector(
+                onTap: _toggle,
+                behavior: HitTestBehavior.opaque,
+                child: row,
+              )
+            : row,
+      );
+    }
+
+    final Widget content;
+    if (headerIsToggle) {
+      content = _expanded ? widget.body : const SizedBox.shrink();
+    } else if (_expanded) {
+      content = Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          widget.body,
+          _viewToggleRow(context, expanded: true, onTap: _toggle),
+        ],
+      );
+    } else {
+      content = _viewToggleRow(context, expanded: false, onTap: _toggle);
+    }
+
+    return Container(
+      clipBehavior: Clip.antiAlias,
+      decoration: BoxDecoration(
+        color: t.card,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: t.line),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.teal.withValues(alpha: 0.06),
+            blurRadius: 12,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [if (header != null) header, content],
+      ),
+    );
+  }
+}
+
+Widget _viewToggleRow(
+  BuildContext context, {
+  required bool expanded,
+  required VoidCallback onTap,
+}) {
+  return GestureDetector(
+    onTap: onTap,
+    behavior: HitTestBehavior.opaque,
+    child: Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 10),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text(
+            expanded ? 'View less' : 'View more',
+            style: const TextStyle(
+              fontSize: 12.6,
+              fontWeight: FontWeight.w700,
+              color: AppColors.tealD,
+            ),
+          ),
+          const SizedBox(width: 4),
+          AnimatedRotation(
+            turns: expanded ? 0.5 : 0,
+            duration: const Duration(milliseconds: 180),
+            child: const Icon(
+              PhosphorIconsBold.caretDown,
+              size: 12,
+              color: AppColors.tealD,
+            ),
+          ),
+        ],
+      ),
     ),
   );
 }
@@ -142,9 +261,10 @@ class _ConditionCards extends StatelessWidget {
   Widget build(BuildContext context) {
     if (conditions.isEmpty) return const SizedBox.shrink();
     final t = context.tokens;
-    return _card(
-      context,
-      header: _cardHeader(context, icon: PhosphorIconsBold.stethoscope, label: 'Possible conditions'),
+    return _CollapsibleCard(
+      icon: PhosphorIconsBold.stethoscope,
+      label: 'Possible conditions',
+      headerToggles: false,
       body: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -157,13 +277,20 @@ class _ConditionCards extends StatelessWidget {
                   Expanded(
                     child: Text(
                       conditions[i].name,
-                      style: TextStyle(fontSize: 13.8, fontWeight: FontWeight.w600, color: t.ink),
+                      style: TextStyle(
+                        fontSize: 13.8,
+                        fontWeight: FontWeight.w600,
+                        color: t.ink,
+                      ),
                     ),
                   ),
                   if (conditions[i].likelihood != null &&
                       conditions[i].likelihood!.trim().isNotEmpty) ...[
                     const SizedBox(width: 8),
-                    _pill(conditions[i].likelihood!, _style(conditions[i].likelihood!)),
+                    _pill(
+                      conditions[i].likelihood!,
+                      _style(conditions[i].likelihood!),
+                    ),
                   ],
                 ],
               ),
@@ -177,7 +304,10 @@ class _ConditionCards extends StatelessWidget {
   Widget _pill(String label, ({Color bg, Color fg}) s) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-      decoration: BoxDecoration(color: s.bg, borderRadius: BorderRadius.circular(999)),
+      decoration: BoxDecoration(
+        color: s.bg,
+        borderRadius: BorderRadius.circular(999),
+      ),
       child: Text(
         label.toUpperCase(),
         style: TextStyle(
@@ -212,7 +342,9 @@ class _WarningBanner extends StatelessWidget {
         color: AppColors.coral.withValues(alpha: critical ? 0.12 : 0.08),
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
-          color: critical ? AppColors.coral : AppColors.coral.withValues(alpha: 0.3),
+          color: critical
+              ? AppColors.coral
+              : AppColors.coral.withValues(alpha: 0.3),
           width: critical ? 2 : 1,
         ),
       ),
@@ -223,8 +355,15 @@ class _WarningBanner extends StatelessWidget {
             width: 26,
             height: 26,
             alignment: Alignment.center,
-            decoration: const BoxDecoration(color: AppColors.coral, shape: BoxShape.circle),
-            child: const Icon(PhosphorIconsFill.warning, size: 15, color: Colors.white),
+            decoration: const BoxDecoration(
+              color: AppColors.coral,
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              PhosphorIconsFill.warning,
+              size: 15,
+              color: Colors.white,
+            ),
           ),
           const SizedBox(width: 10),
           Expanded(
@@ -266,9 +405,9 @@ class _NextSteps extends StatelessWidget {
   Widget build(BuildContext context) {
     if (steps.isEmpty) return const SizedBox.shrink();
     final t = context.tokens;
-    return _card(
-      context,
-      header: _cardHeader(context, icon: PhosphorIconsBold.listChecks, label: 'Next steps'),
+    return _CollapsibleCard(
+      icon: PhosphorIconsBold.listChecks,
+      label: 'Next steps',
       body: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -301,7 +440,11 @@ class _NextSteps extends StatelessWidget {
                     child: NovaRichText(
                       text: steps[i],
                       linkifyPhone: true,
-                      style: TextStyle(fontSize: 13.6, height: 1.35, color: t.ink),
+                      style: TextStyle(
+                        fontSize: 13.6,
+                        height: 1.35,
+                        color: t.ink,
+                      ),
                     ),
                   ),
                 ],
@@ -326,11 +469,10 @@ class _BulletList extends StatelessWidget {
     if (items.isEmpty) return const SizedBox.shrink();
     final t = context.tokens;
     final hasTitle = title != null && title!.trim().isNotEmpty;
-    return _card(
-      context,
-      header: hasTitle
-          ? _cardHeader(context, icon: PhosphorIconsBold.listBullets, label: title!.trim())
-          : null,
+    return _CollapsibleCard(
+      icon: PhosphorIconsBold.listBullets,
+      label: hasTitle ? title!.trim() : null,
+      headerToggles: false,
       body: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
         child: Column(
@@ -346,13 +488,20 @@ class _BulletList extends StatelessWidget {
                     margin: const EdgeInsets.only(top: 7),
                     width: 6,
                     height: 6,
-                    decoration: const BoxDecoration(color: AppColors.teal, shape: BoxShape.circle),
+                    decoration: const BoxDecoration(
+                      color: AppColors.teal,
+                      shape: BoxShape.circle,
+                    ),
                   ),
                   const SizedBox(width: 9),
                   Expanded(
                     child: NovaRichText(
                       text: items[i],
-                      style: TextStyle(fontSize: 13.6, height: 1.35, color: t.ink),
+                      style: TextStyle(
+                        fontSize: 13.6,
+                        height: 1.35,
+                        color: t.ink,
+                      ),
                     ),
                   ),
                 ],
@@ -375,9 +524,10 @@ class _KeyPoints extends StatelessWidget {
   Widget build(BuildContext context) {
     if (points.isEmpty) return const SizedBox.shrink();
     final t = context.tokens;
-    return _card(
-      context,
-      header: _cardHeader(context, icon: PhosphorIconsBold.lightbulb, label: 'Key points'),
+    return _CollapsibleCard(
+      icon: PhosphorIconsBold.lightbulb,
+      label: 'Key points',
+      headerToggles: false,
       body: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
         child: Column(
@@ -391,13 +541,21 @@ class _KeyPoints extends StatelessWidget {
                 children: [
                   const Padding(
                     padding: EdgeInsets.only(top: 1),
-                    child: Icon(PhosphorIconsFill.checkCircle, size: 16, color: AppColors.teal),
+                    child: Icon(
+                      PhosphorIconsFill.checkCircle,
+                      size: 16,
+                      color: AppColors.teal,
+                    ),
                   ),
                   const SizedBox(width: 9),
                   Expanded(
                     child: NovaRichText(
                       text: points[i],
-                      style: TextStyle(fontSize: 13.6, height: 1.35, color: t.ink),
+                      style: TextStyle(
+                        fontSize: 13.6,
+                        height: 1.35,
+                        color: t.ink,
+                      ),
                     ),
                   ),
                 ],
@@ -503,12 +661,23 @@ class _DecisionBanner extends StatelessWidget {
             )
           else
             Padding(
-              padding: const EdgeInsets.only(left: 14, right: 14, top: 13, bottom: 4),
+              padding: const EdgeInsets.only(
+                left: 14,
+                right: 14,
+                top: 13,
+                bottom: 4,
+              ),
               child: Align(
                 alignment: Alignment.centerLeft,
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                  decoration: BoxDecoration(color: badgeBg, borderRadius: BorderRadius.circular(999)),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: badgeBg,
+                    borderRadius: BorderRadius.circular(999),
+                  ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
@@ -556,9 +725,9 @@ class _OtcMedications extends StatelessWidget {
   Widget build(BuildContext context) {
     if (meds.isEmpty) return const SizedBox.shrink();
     final t = context.tokens;
-    return _card(
-      context,
-      header: _cardHeader(context, icon: PhosphorIconsBold.pill, label: 'Over-the-counter options'),
+    return _CollapsibleCard(
+      icon: PhosphorIconsBold.pill,
+      label: 'Over the counter medication',
       body: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -578,11 +747,19 @@ class _OtcMedications extends StatelessWidget {
                     children: [
                       Text(
                         meds[i].name,
-                        style: TextStyle(fontSize: 14.4, fontWeight: FontWeight.w600, color: t.ink),
+                        style: TextStyle(
+                          fontSize: 14.4,
+                          fontWeight: FontWeight.w600,
+                          color: t.ink,
+                        ),
                       ),
-                      if (meds[i].dosage != null && meds[i].dosage!.trim().isNotEmpty)
+                      if (meds[i].dosage != null &&
+                          meds[i].dosage!.trim().isNotEmpty)
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 3,
+                          ),
                           decoration: BoxDecoration(
                             color: AppColors.teal.withValues(alpha: 0.12),
                             borderRadius: BorderRadius.circular(999),
@@ -601,12 +778,20 @@ class _OtcMedications extends StatelessWidget {
                   const SizedBox(height: 6),
                   Text(
                     meds[i].purpose,
-                    style: TextStyle(fontSize: 13.1, height: 1.35, color: t.ink2),
+                    style: TextStyle(
+                      fontSize: 13.1,
+                      height: 1.35,
+                      color: t.ink2,
+                    ),
                   ),
-                  if (meds[i].caution != null && meds[i].caution!.trim().isNotEmpty) ...[
+                  if (meds[i].caution != null &&
+                      meds[i].caution!.trim().isNotEmpty) ...[
                     const SizedBox(height: 6),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 6,
+                      ),
                       decoration: BoxDecoration(
                         color: AppColors.amber.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(9),
@@ -616,7 +801,11 @@ class _OtcMedications extends StatelessWidget {
                         children: [
                           const Padding(
                             padding: EdgeInsets.only(top: 1),
-                            child: Icon(PhosphorIconsFill.warningCircle, size: 14, color: AppColors.amber),
+                            child: Icon(
+                              PhosphorIconsFill.warningCircle,
+                              size: 14,
+                              color: AppColors.amber,
+                            ),
                           ),
                           const SizedBox(width: 6),
                           Expanded(
@@ -638,10 +827,134 @@ class _OtcMedications extends StatelessWidget {
             ),
           ],
           Container(
-            decoration: BoxDecoration(border: Border(top: BorderSide(color: t.line))),
+            decoration: BoxDecoration(
+              border: Border(top: BorderSide(color: t.line)),
+            ),
             padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 8),
             child: Text(
               'Self-care suggestions, not a prescription — check with a pharmacist.',
+              style: TextStyle(
+                fontSize: 10.9,
+                height: 1.35,
+                fontStyle: FontStyle.italic,
+                color: t.ink3,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── lab_tests ───────────────────────────────────────────────────────────────
+
+const Map<String, String> _urgencyLabel = {
+  'routine': 'Routine',
+  'soon': 'Soon',
+  'urgent': 'Urgent',
+};
+
+class _LabTests extends StatelessWidget {
+  final List<LabTest> tests;
+  const _LabTests({required this.tests});
+
+  ({Color bg, Color fg}) _urgencyStyle(BuildContext context, String? urgency) {
+    switch (urgency) {
+      case 'urgent':
+        return (
+          bg: AppColors.coral.withValues(alpha: 0.14),
+          fg: AppColors.coral,
+        );
+      case 'soon':
+        return (
+          bg: AppColors.amber.withValues(alpha: 0.16),
+          fg: AppColors.hex('#8A6A10'),
+        );
+      default:
+        return (bg: context.tokens.soft, fg: context.tokens.ink3);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (tests.isEmpty) return const SizedBox.shrink();
+    final t = context.tokens;
+    return _CollapsibleCard(
+      icon: PhosphorIconsBold.flask,
+      label: 'Lab tests',
+      body: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (var i = 0; i < tests.length; i++) ...[
+            if (i > 0) Divider(height: 1, thickness: 1, color: t.line),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 4,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      Text(
+                        tests[i].name,
+                        style: TextStyle(
+                          fontSize: 14.4,
+                          fontWeight: FontWeight.w600,
+                          color: t.ink,
+                        ),
+                      ),
+                      if (tests[i].urgency != null &&
+                          tests[i].urgency!.trim().isNotEmpty)
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 3,
+                          ),
+                          decoration: BoxDecoration(
+                            color: _urgencyStyle(context, tests[i].urgency).bg,
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: Text(
+                            _urgencyLabel[tests[i].urgency] ??
+                                tests[i].urgency!,
+                            style: TextStyle(
+                              fontSize: 10.9,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 0.3,
+                              color: _urgencyStyle(
+                                context,
+                                tests[i].urgency,
+                              ).fg,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    tests[i].reason,
+                    style: TextStyle(
+                      fontSize: 13.1,
+                      height: 1.35,
+                      color: t.ink2,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+          Container(
+            decoration: BoxDecoration(
+              border: Border(top: BorderSide(color: t.line)),
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 8),
+            child: Text(
+              'Suggested investigations to discuss with your doctor — not a lab order.',
               style: TextStyle(
                 fontSize: 10.9,
                 height: 1.35,
@@ -713,31 +1026,41 @@ class _NovaRichTextState extends State<NovaRichText> {
       final numbered = RegExp(r'^(\d+)\.\s+(.*)$').firstMatch(trimmed);
 
       if (bullet != null) {
-        children.add(Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Container(
-              margin: const EdgeInsets.only(top: 7),
-              width: 6,
-              height: 6,
-              decoration: const BoxDecoration(color: AppColors.teal, shape: BoxShape.circle),
-            ),
-            const SizedBox(width: 8),
-            Expanded(child: _line(bullet.group(1)!)),
-          ],
-        ));
+        children.add(
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                margin: const EdgeInsets.only(top: 7),
+                width: 6,
+                height: 6,
+                decoration: const BoxDecoration(
+                  color: AppColors.teal,
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(child: _line(bullet.group(1)!)),
+            ],
+          ),
+        );
       } else if (numbered != null) {
-        children.add(Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              '${numbered.group(1)}.',
-              style: widget.style.copyWith(fontWeight: FontWeight.w600, color: AppColors.tealD),
-            ),
-            const SizedBox(width: 8),
-            Expanded(child: _line(numbered.group(2)!)),
-          ],
-        ));
+        children.add(
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '${numbered.group(1)}.',
+                style: widget.style.copyWith(
+                  fontWeight: FontWeight.w600,
+                  color: AppColors.tealD,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(child: _line(numbered.group(2)!)),
+            ],
+          ),
+        );
       } else {
         children.add(_line(line));
       }
@@ -760,24 +1083,30 @@ class _NovaRichTextState extends State<NovaRichText> {
       if (m.start > last) _plain(text.substring(last, m.start), spans);
       final tok = m.group(0)!;
       if (tok.startsWith('**')) {
-        spans.add(TextSpan(
-          text: tok.substring(2, tok.length - 2),
-          style: const TextStyle(fontWeight: FontWeight.w600),
-        ));
-      } else if (tok.startsWith('*')) {
-        spans.add(TextSpan(
-          text: tok.substring(1, tok.length - 1),
-          style: const TextStyle(fontStyle: FontStyle.italic),
-        ));
-      } else {
-        spans.add(TextSpan(
-          text: tok.substring(1, tok.length - 1),
-          style: TextStyle(
-            color: AppColors.tealD,
-            backgroundColor: AppColors.teal.withValues(alpha: 0.1),
-            fontFamily: 'monospace',
+        spans.add(
+          TextSpan(
+            text: tok.substring(2, tok.length - 2),
+            style: const TextStyle(fontWeight: FontWeight.w600),
           ),
-        ));
+        );
+      } else if (tok.startsWith('*')) {
+        spans.add(
+          TextSpan(
+            text: tok.substring(1, tok.length - 1),
+            style: const TextStyle(fontStyle: FontStyle.italic),
+          ),
+        );
+      } else {
+        spans.add(
+          TextSpan(
+            text: tok.substring(1, tok.length - 1),
+            style: TextStyle(
+              color: AppColors.tealD,
+              backgroundColor: AppColors.teal.withValues(alpha: 0.1),
+              fontFamily: 'monospace',
+            ),
+          ),
+        );
       }
       last = m.end;
     }
@@ -793,21 +1122,25 @@ class _NovaRichTextState extends State<NovaRichText> {
     }
     var last = 0;
     for (final m in _phoneRe.allMatches(text)) {
-      if (m.start > last) spans.add(TextSpan(text: text.substring(last, m.start)));
+      if (m.start > last) {
+        spans.add(TextSpan(text: text.substring(last, m.start)));
+      }
       final seg = m.group(0)!;
       final tel = seg.replaceAll(RegExp(r'[^\d+]'), '');
       final rec = TapGestureRecognizer()
         ..onTap = () => launchUrl(Uri.parse('tel:$tel'));
       _recognizers.add(rec);
-      spans.add(TextSpan(
-        text: seg,
-        style: const TextStyle(
-          fontWeight: FontWeight.w600,
-          color: AppColors.tealD,
-          decoration: TextDecoration.underline,
+      spans.add(
+        TextSpan(
+          text: seg,
+          style: const TextStyle(
+            fontWeight: FontWeight.w600,
+            color: AppColors.tealD,
+            decoration: TextDecoration.underline,
+          ),
+          recognizer: rec,
         ),
-        recognizer: rec,
-      ));
+      );
       last = m.end;
     }
     if (last < text.length) spans.add(TextSpan(text: text.substring(last)));

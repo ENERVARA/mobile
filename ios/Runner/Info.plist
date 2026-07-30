@@ -54,6 +54,12 @@
 	</array>
 	<key>FirebaseAppDelegateProxyEnabled</key>
 	<true/>
+	<!-- Nova voice input — mic capture for speech-to-text. -->
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Enervara uses your microphone so you can talk to Nova instead of typing.</string>
+	<!-- Nova image attach — picking a photo from the library to send in chat. -->
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Enervara needs access to your photos so you can share images with Nova.</string>
 	<!-- Google Sign-In's redirect URI on iOS — the REVERSED_CLIENT_ID from
 	     GoogleService-Info.plist, registered as a custom URL scheme. -->
 	<key>CFBundleURLTypes</key>

@@ -2,6 +2,8 @@
     <!-- Android 13+ requires runtime consent to show notifications; firebase_messaging /
          flutter_local_notifications request it, this just declares the intent. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Nova voice input — mic capture for the `record` package. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <application
         android:label="enervara"
         android:name="${applicationName}"

@@ -7,8 +7,9 @@ import '../data/services/chat_service.dart';
 
 final chatServiceProvider = Provider((ref) => const ChatService());
 
-final chatProvider =
-    StateNotifierProvider<ChatController, ChatState>((ref) => ChatController(ref));
+final chatProvider = StateNotifierProvider<ChatController, ChatState>(
+  (ref) => ChatController(ref),
+);
 
 class ChatState {
   final List<ChatConversation> conversations;
@@ -63,8 +64,9 @@ class ChatState {
       conversations: conversations ?? this.conversations,
       recentConversations: recentConversations ?? this.recentConversations,
       isLoadingRecent: isLoadingRecent ?? this.isLoadingRecent,
-      activeConversationId:
-          clearActive ? null : (activeConversationId ?? this.activeConversationId),
+      activeConversationId: clearActive
+          ? null
+          : (activeConversationId ?? this.activeConversationId),
       messages: messages ?? this.messages,
       isLoadingList: isLoadingList ?? this.isLoadingList,
       isLoadingMessages: isLoadingMessages ?? this.isLoadingMessages,
@@ -72,8 +74,9 @@ class ChatState {
       streamingContent: streamingContent ?? this.streamingContent,
       streamingBlocks: streamingBlocks ?? this.streamingBlocks,
       isSendingImage: isSendingImage ?? this.isSendingImage,
-      imageUploadProgress:
-          clearImageProgress ? null : (imageUploadProgress ?? this.imageUploadProgress),
+      imageUploadProgress: clearImageProgress
+          ? null
+          : (imageUploadProgress ?? this.imageUploadProgress),
       streamError: clearStreamError ? null : (streamError ?? this.streamError),
     );
   }
@@ -179,11 +182,16 @@ class ChatController extends StateNotifier<ChatState> {
       cancelToken: _cancelToken,
       handlers: ChatStreamHandlers(
         onChunk: (text) {
-          state = state.copyWith(streamingContent: state.streamingContent + text);
+          state = state.copyWith(
+            streamingContent: state.streamingContent + text,
+          );
         },
         onBlock: (block) {
           state = state.copyWith(
-            streamingBlocks: [...state.streamingBlocks, MessageBlock.fromJson(block)],
+            streamingBlocks: [
+              ...state.streamingBlocks,
+              MessageBlock.fromJson(block),
+            ],
           );
         },
         onDone: (payload) {
@@ -214,14 +222,18 @@ class ChatController extends StateNotifier<ChatState> {
         : null;
 
     state = state.copyWith(
-      messages: assistant != null ? [...state.messages, assistant] : state.messages,
+      messages: assistant != null
+          ? [...state.messages, assistant]
+          : state.messages,
       streamingContent: '',
       streamingBlocks: const [],
       isStreaming: false,
       conversations: state.conversations
-          .map((c) => c.id == conversationId
-              ? c.copyWith(lastMessageAt: DateTime.now().toIso8601String())
-              : c)
+          .map(
+            (c) => c.id == conversationId
+                ? c.copyWith(lastMessageAt: DateTime.now().toIso8601String())
+                : c,
+          )
           .toList(),
     );
     _cancelToken = null;
@@ -247,7 +259,11 @@ class ChatController extends StateNotifier<ChatState> {
     } catch (_) {}
   }
 
-  Future<void> sendImageMessage(String filePath, String query, String mimeType) async {
+  Future<void> sendImageMessage(
+    String filePath,
+    String query,
+    String mimeType,
+  ) async {
     final conversationId = state.activeConversationId;
     if (conversationId == null) return;
 
@@ -276,21 +292,28 @@ class ChatController extends StateNotifier<ChatState> {
         conversationId,
         filePath,
         trimmedQuery,
+        mimeType,
         onProgress: (p) => state = state.copyWith(imageUploadProgress: p),
       );
       if (state.activeConversationId == conversationId) {
         final deduped = state.messages
-            .where((m) =>
-                m.id != localId &&
-                m.id != result.userMessage.id &&
-                m.id != result.assistantMessage.id)
+            .where(
+              (m) =>
+                  m.id != localId &&
+                  m.id != result.userMessage.id &&
+                  m.id != result.assistantMessage.id,
+            )
             .toList();
         state = state.copyWith(
           messages: [...deduped, result.userMessage, result.assistantMessage],
           conversations: state.conversations
-              .map((c) => c.id == conversationId
-                  ? c.copyWith(lastMessageAt: DateTime.now().toIso8601String())
-                  : c)
+              .map(
+                (c) => c.id == conversationId
+                    ? c.copyWith(
+                        lastMessageAt: DateTime.now().toIso8601String(),
+                      )
+                    : c,
+              )
               .toList(),
         );
       }
@@ -312,7 +335,9 @@ class ChatController extends StateNotifier<ChatState> {
     try {
       final updated = await _service.renameConversation(id, next);
       state = state.copyWith(
-        conversations: state.conversations.map((c) => c.id == id ? updated : c).toList(),
+        conversations: state.conversations
+            .map((c) => c.id == id ? updated : c)
+            .toList(),
       );
     } catch (_) {}
   }
@@ -322,7 +347,9 @@ class ChatController extends StateNotifier<ChatState> {
       await _service.deleteConversation(id);
       state = state.copyWith(
         conversations: state.conversations.where((c) => c.id != id).toList(),
-        recentConversations: state.recentConversations.where((c) => c.id != id).toList(),
+        recentConversations: state.recentConversations
+            .where((c) => c.id != id)
+            .toList(),
         clearActive: state.activeConversationId == id,
         messages: state.activeConversationId == id ? const [] : state.messages,
       );

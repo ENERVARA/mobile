@@ -8,8 +8,11 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/context_ext.dart';
 import '../../../../core/ui/app_messenger.dart';
+import '../../../../data/constants/specialities.dart';
 import '../../../../state/chat_provider.dart';
 import '../../../../state/nova_ui_provider.dart';
+import '../../../../state/voice_provider.dart';
+import 'voice_record_bar.dart';
 
 /// Nova input composer — text field + image attach + send/stop, plus an inline
 /// stream-error banner. Ported from the input section of `ChatPanel.tsx`.
@@ -22,6 +25,7 @@ class NovaComposer extends ConsumerStatefulWidget {
 
 class _NovaComposerState extends ConsumerState<NovaComposer> {
   final _controller = TextEditingController();
+  final _focusNode = FocusNode();
   String? _imagePath;
   String? _imageName;
   String _imageMime = 'image/jpeg';
@@ -31,7 +35,18 @@ class _NovaComposerState extends ConsumerState<NovaComposer> {
   @override
   void dispose() {
     _controller.dispose();
+    _focusNode.dispose();
     super.dispose();
+  }
+
+  /// Voice → text: transcription lands in the input for review, not auto-sent.
+  void _appendTranscript(String transcript) {
+    final prev = _controller.text.trim();
+    _controller.text = prev.isNotEmpty ? '$prev $transcript' : transcript;
+    _controller.selection = TextSelection.collapsed(
+      offset: _controller.text.length,
+    );
+    _focusNode.requestFocus();
   }
 
   String _mimeFor(String ext) {
@@ -48,12 +63,16 @@ class _NovaComposerState extends ConsumerState<NovaComposer> {
   }
 
   Future<void> _pick() async {
-    final XFile? file = await ImagePicker().pickImage(source: ImageSource.gallery);
+    final XFile? file = await ImagePicker().pickImage(
+      source: ImageSource.gallery,
+    );
     if (file == null) return;
     final ext = file.path.split('.').last.toLowerCase();
     const allowed = {'jpg', 'jpeg', 'png', 'webp', 'heic'};
     if (!allowed.contains(ext)) {
-      AppMessenger.error('Unsupported file type. Accepted: JPEG, PNG, WEBP, HEIC');
+      AppMessenger.error(
+        'Unsupported file type. Accepted: JPEG, PNG, WEBP, HEIC',
+      );
       return;
     }
     final size = await file.length();
@@ -70,9 +89,9 @@ class _NovaComposerState extends ConsumerState<NovaComposer> {
   }
 
   void _clearImage() => setState(() {
-        _imagePath = null;
-        _imageName = null;
-      });
+    _imagePath = null;
+    _imageName = null;
+  });
 
   void _submit() {
     final text = _controller.text.trim();
@@ -94,6 +113,27 @@ class _NovaComposerState extends ConsumerState<NovaComposer> {
     final chat = ref.watch(chatProvider);
     final sending = ref.watch(novaUiProvider.select((s) => s.sending));
     final hasImage = _imagePath != null;
+    final voice = ref.watch(voiceProvider);
+
+    // Image/blocks capability must reflect the ACTUAL target conversation,
+    // not just the focused speciality. Mirrors ChatPanel.tsx's `blocksEnabled`.
+    final novaState = ref.watch(novaUiProvider);
+    final activeId = chat.activeConversationId;
+    final activeMatches = chat.conversations.where((c) => c.id == activeId);
+    final resolvedSlug = isSpecialityEnabled(novaState.specialitySlug)
+        ? novaState.specialitySlug!
+        : kDefaultSpecialitySlug;
+    final blocksEnabled = activeId != null
+        ? (activeMatches.isEmpty ? false : activeMatches.first.blocksEnabled)
+        : resolvedSlug == kDefaultSpecialitySlug;
+
+    ref.listen<VoiceState>(voiceProvider, (prev, next) {
+      final transcript = next.transcript;
+      if (transcript != null && transcript.isNotEmpty) {
+        _appendTranscript(transcript);
+        ref.read(voiceProvider.notifier).consumeTranscript();
+      }
+    });
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -106,7 +146,9 @@ class _NovaComposerState extends ConsumerState<NovaComposer> {
             decoration: BoxDecoration(
               color: AppColors.coral.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.coral.withValues(alpha: 0.35)),
+              border: Border.all(
+                color: AppColors.coral.withValues(alpha: 0.35),
+              ),
             ),
             child: Text(
               chat.streamError!,
@@ -150,61 +192,87 @@ class _NovaComposerState extends ConsumerState<NovaComposer> {
                       ),
                       GestureDetector(
                         onTap: _clearImage,
-                        child: Icon(PhosphorIconsRegular.x, size: 16, color: t.ink3),
+                        child: Icon(
+                          PhosphorIconsRegular.x,
+                          size: 16,
+                          color: t.ink3,
+                        ),
                       ),
                     ],
                   ),
                 ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: t.soft,
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: t.line),
-                ),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    _iconButton(
-                      icon: PhosphorIconsRegular.paperclip,
-                      color: t.ink2,
-                      onTap: _pick,
-                    ),
-                    Expanded(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 6),
-                        child: TextField(
-                          controller: _controller,
-                          minLines: 1,
-                          maxLines: 5,
-                          keyboardType: TextInputType.multiline,
-                          textInputAction: TextInputAction.newline,
-                          style: TextStyle(fontSize: 13.8, height: 1.4, color: t.ink),
-                          decoration: InputDecoration(
-                            isCollapsed: true,
-                            border: InputBorder.none,
-                            hintText: hasImage
-                                ? 'Add a caption (optional)…'
-                                : 'Ask Nova anything…',
-                            hintStyle: TextStyle(fontSize: 13.8, color: t.ink3),
+              if (voice.isActive)
+                const VoiceRecordBar()
+              else
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: t.soft,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: t.line),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      _iconButton(
+                        icon: PhosphorIconsRegular.paperclip,
+                        color: blocksEnabled ? t.ink2 : t.ink3,
+                        onTap: blocksEnabled ? _pick : null,
+                      ),
+                      Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 6),
+                          child: TextField(
+                            controller: _controller,
+                            focusNode: _focusNode,
+                            minLines: 1,
+                            maxLines: 5,
+                            keyboardType: TextInputType.multiline,
+                            textInputAction: TextInputAction.newline,
+                            style: TextStyle(
+                              fontSize: 13.8,
+                              height: 1.4,
+                              color: t.ink,
+                            ),
+                            decoration: InputDecoration(
+                              isCollapsed: true,
+                              border: InputBorder.none,
+                              hintText: hasImage
+                                  ? 'Add a caption (optional)…'
+                                  : 'Ask Nova anything…',
+                              hintStyle: TextStyle(
+                                fontSize: 13.8,
+                                color: t.ink3,
+                              ),
+                            ),
                           ),
                         ),
                       ),
-                    ),
-                    const SizedBox(width: 4),
-                    if (chat.isStreaming)
-                      _sendButton(
-                        icon: PhosphorIconsFill.stop,
-                        onTap: () => ref.read(chatProvider.notifier).stopStream(),
-                      )
-                    else
-                      _sendButton(
-                        icon: PhosphorIconsFill.paperPlaneRight,
-                        onTap: sending ? null : _submit,
+                      _iconButton(
+                        icon: PhosphorIconsRegular.microphone,
+                        color: chat.isStreaming ? t.ink3 : t.ink2,
+                        onTap: chat.isStreaming
+                            ? null
+                            : () => ref.read(voiceProvider.notifier).start(),
                       ),
-                  ],
+                      const SizedBox(width: 4),
+                      if (chat.isStreaming)
+                        _sendButton(
+                          icon: PhosphorIconsFill.stop,
+                          onTap: () =>
+                              ref.read(chatProvider.notifier).stopStream(),
+                        )
+                      else
+                        _sendButton(
+                          icon: PhosphorIconsFill.paperPlaneRight,
+                          onTap: sending ? null : _submit,
+                        ),
+                    ],
+                  ),
                 ),
-              ),
               const SizedBox(height: 7),
               Text(
                 'Nova can make mistakes. Check important information.',
@@ -218,7 +286,11 @@ class _NovaComposerState extends ConsumerState<NovaComposer> {
     );
   }
 
-  Widget _iconButton({required IconData icon, required Color color, required VoidCallback onTap}) {
+  Widget _iconButton({
+    required IconData icon,
+    required Color color,
+    required VoidCallback? onTap,
+  }) {
     return GestureDetector(
       onTap: onTap,
       behavior: HitTestBehavior.opaque,

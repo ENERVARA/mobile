@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../state/auth_provider.dart';
+import '../state/boot_gate_provider.dart';
 import '../state/first_run_provider.dart';
 import '../ui/shell/app_shell.dart';
 import '../ui/shell/boot_splash.dart';
@@ -21,7 +22,10 @@ import '../ui/screens/reports/report_detail_page.dart';
 import '../ui/screens/profile/profile_page.dart';
 import '../ui/screens/emergency/emergency_page.dart';
 import '../ui/screens/nova/nova_chat_page.dart';
+import '../ui/screens/about/about_content.dart';
 import '../ui/screens/about/about_page.dart';
+import '../ui/screens/about/about_story_page.dart';
+import '../ui/screens/about/legal_doc_page.dart';
 import '../ui/screens/welcome/welcome_guide_page.dart';
 
 const _authPaths = {
@@ -49,6 +53,8 @@ final routerProvider = Provider<GoRouter>((ref) {
   final refresh = ValueNotifier<int>(0);
   ref.listen(authProvider, (_, __) => refresh.value++);
   ref.listen(firstRunProvider, (_, __) => refresh.value++);
+  // Listening here also starts the gate's timer at router-creation time.
+  ref.listen(bootGateProvider, (_, __) => refresh.value++);
   ref.onDispose(refresh.dispose);
 
   return GoRouter(
@@ -60,7 +66,9 @@ final routerProvider = Provider<GoRouter>((ref) {
       final path = state.uri.path;
       final isAuthPath = _authPaths.contains(path);
 
-      if (!auth.isHydrated || !firstRun.loaded) {
+      // The splash also waits out one full pass of its message loop, so it
+      // never gets cut off halfway through the sequence.
+      if (!auth.isHydrated || !firstRun.loaded || !ref.read(bootGateProvider)) {
         return path == '/splash' ? null : '/splash';
       }
 
@@ -106,6 +114,19 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/welcome', builder: (_, __) => const WelcomeGuidePage()),
       GoRoute(path: '/onboarding', builder: (_, __) => const OnboardingPage()),
       GoRoute(path: '/about', builder: (_, __) => const AboutPage()),
+      GoRoute(path: '/about/story', builder: (_, __) => const AboutStoryPage()),
+      GoRoute(
+        path: '/about/privacy',
+        builder: (_, __) => const LegalDocPage(doc: kPrivacyPolicy),
+      ),
+      GoRoute(
+        path: '/about/terms',
+        builder: (_, __) => const LegalDocPage(doc: kTermsOfService),
+      ),
+      GoRoute(
+        path: '/about/security',
+        builder: (_, __) => const LegalDocPage(doc: kSecurityDoc),
+      ),
       GoRoute(
         path: '/nova',
         builder: (_, state) => NovaChatPage(

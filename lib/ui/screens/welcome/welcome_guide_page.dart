@@ -15,10 +15,16 @@ class _Slide {
   final List<Color> tint;
   final String title;
   final String body;
+
+  /// Optional tagline pill under the body — used sparingly, for slides that
+  /// need a closing beat rather than another sentence.
+  final String? footer;
+
   const _Slide({
     required this.tint,
     required this.title,
     required this.body,
+    this.footer,
   });
 }
 
@@ -54,10 +60,17 @@ const _slides = <_Slide>[
         'Upload medical reports to keep them at hand, and reach emergency services in a single tap when it matters.',
   ),
   _Slide(
+    tint: [AppColors.lav, AppColors.cyan],
+    title: 'From patient to physician, without losing context',
+    body:
+        'Every symptom, report, medication and milestone travels with you — so your doctor begins with a complete picture, not a blank page.',
+    footer: 'Continuous care. Seamless handoff.',
+  ),
+  _Slide(
     tint: [AppColors.tealD, AppColors.lav],
     title: 'Your data, protected',
     body:
-        'Your health information is encrypted, securely stored, and handled in accordance with HIPAA standards and the Digital Personal Data Protection (DPDP) Act, 2023.',
+        'Your records are encrypted in transit and at rest on secure AWS infrastructure, and handled to HIPAA, HL7 FHIR and DPDP Act, 2023 standards.',
   ),
 ];
 
@@ -227,8 +240,21 @@ class _SlideViewState extends State<_SlideView> with SingleTickerProviderStateMi
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
+    // Scroll-on-overflow while still centring on roomy screens: the longer
+    // slides (title + body + footer) can exceed a short viewport.
+    return LayoutBuilder(
+      builder: (context, c) => SingleChildScrollView(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(minHeight: c.maxHeight),
+          child: _content(t),
+        ),
+      ),
+    );
+  }
+
+  Widget _content(dynamic t) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 32),
+      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 8),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
@@ -243,6 +269,7 @@ class _SlideViewState extends State<_SlideView> with SingleTickerProviderStateMi
             builder: (context, _) {
               final titleT = _seg(_text.value, 0.1, 0.6);
               final bodyT = _seg(_text.value, 0.3, 0.85);
+              final footerT = _seg(_text.value, 0.5, 1.0);
               return Column(
                 children: [
                   Opacity(
@@ -273,6 +300,33 @@ class _SlideViewState extends State<_SlideView> with SingleTickerProviderStateMi
                       ),
                     ),
                   ),
+                  if (widget.slide.footer != null) ...[
+                    const SizedBox(height: 18),
+                    Opacity(
+                      opacity: footerT,
+                      child: Transform.translate(
+                        offset: Offset(0, (1 - footerT) * 12),
+                        child: Container(
+                          padding:
+                              const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: widget.slide.tint.first.withValues(alpha: 0.10),
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: Text(
+                            widget.slide.footer!,
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 0.2,
+                              color: widget.slide.tint.first,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ],
               );
             },

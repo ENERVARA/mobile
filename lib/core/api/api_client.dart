@@ -49,7 +49,6 @@ class ApiClient {
             return;
           }
           if (status >= 400) {
-            _toastError(response.data);
             handler.reject(
               DioException(
                 requestOptions: response.requestOptions,
@@ -63,8 +62,17 @@ class ApiClient {
           handler.next(response);
         },
         onError: (err, handler) {
-          // Network / timeout / 5xx.
-          if (err.type != DioExceptionType.cancel) {
+          // Toasting happens here only, so a failed request is never shown
+          // twice. Silent on purpose for:
+          // - cancellations (the request was intentionally aborted),
+          // - 401s (already handled above — session wipe/redirect, no toast
+          //   unless it's the account-deletion-pending case),
+          // - responseless network/timeout errors (no backend message to
+          //   show, and these fire routinely on a cold app launch before
+          //   the network/backend is ready — mirrors the dashboard, which
+          //   stays silent on connectivity errors too).
+          final status = err.response?.statusCode;
+          if (err.type != DioExceptionType.cancel && status != null && status != 401) {
             final msg = _messageOf(err.response?.data) ?? 'Something went wrong';
             AppMessenger.error(msg);
           }
@@ -96,10 +104,6 @@ class ApiClient {
     }
     TokenStore.instance.clear();
     onUnauthorized?.call();
-  }
-
-  void _toastError(dynamic data) {
-    AppMessenger.error(_messageOf(data) ?? 'Something went wrong');
   }
 
   static String? _messageOf(dynamic data) {

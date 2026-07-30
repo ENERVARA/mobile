@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -8,6 +9,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/context_ext.dart';
 import '../../../../core/utils/formatters.dart';
 import '../../../../data/models/chat.dart';
+import '../../../../data/services/chat_service.dart';
 import '../../../../state/chat_provider.dart';
 import '../../../widgets/logo.dart';
 import 'nova_blocks.dart';
@@ -53,29 +55,35 @@ class _MessageListState extends ConsumerState<MessageList> {
   Widget build(BuildContext context) {
     final chat = ref.watch(chatProvider);
 
-    final signature = chat.messages.length * 100000 +
+    final signature =
+        chat.messages.length * 100000 +
         chat.streamingContent.length +
         (chat.isStreaming ? 1 : 0);
     if (signature != _lastSignature) {
       _lastSignature = signature;
       // Only follow the tail when the user is already near the bottom.
-      final nearBottom = !_scroll.hasClients ||
+      final nearBottom =
+          !_scroll.hasClients ||
           _scroll.position.pixels >= _scroll.position.maxScrollExtent - 120;
       if (nearBottom) _scrollToBottom();
     }
 
     final rows = <Widget>[];
     for (final m in chat.messages) {
-      rows.add(_MessageRow(
-        message: _toPanel(m, chat.imageUploadProgress),
-        userInitial: widget.userInitial,
-      ));
+      rows.add(
+        _MessageRow(
+          message: _toPanel(m, chat.imageUploadProgress),
+          userInitial: widget.userInitial,
+        ),
+      );
     }
     if (chat.isStreaming) {
-      rows.add(_StreamingRow(
-        content: chat.streamingContent,
-        blocks: chat.streamingBlocks,
-      ));
+      rows.add(
+        _StreamingRow(
+          content: chat.streamingContent,
+          blocks: chat.streamingBlocks,
+        ),
+      );
     }
 
     return ListView(
@@ -128,7 +136,11 @@ class _Avatar extends StatelessWidget {
       child: isUser
           ? Text(
               userInitial,
-              style: TextStyle(fontSize: 10.7, fontWeight: FontWeight.w700, color: t.ink),
+              style: TextStyle(
+                fontSize: 10.7,
+                fontWeight: FontWeight.w700,
+                color: t.ink,
+              ),
             )
           : const Logo(size: 15, white: true),
     );
@@ -150,7 +162,9 @@ class _MessageRow extends StatelessWidget {
     final bubble = ConstrainedBox(
       constraints: BoxConstraints(maxWidth: context.screenSize.width * 0.82),
       child: Column(
-        crossAxisAlignment: isUser ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+        crossAxisAlignment: isUser
+            ? CrossAxisAlignment.end
+            : CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
           _content(context, isUser),
@@ -172,7 +186,9 @@ class _MessageRow extends StatelessWidget {
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisAlignment: isUser ? MainAxisAlignment.end : MainAxisAlignment.start,
+      mainAxisAlignment: isUser
+          ? MainAxisAlignment.end
+          : MainAxisAlignment.start,
       children: children,
     );
   }
@@ -197,10 +213,14 @@ class _MessageRow extends StatelessWidget {
     }
     final analysis = message.analysis;
     return Column(
-      crossAxisAlignment: isUser ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+      crossAxisAlignment: isUser
+          ? CrossAxisAlignment.end
+          : CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        isUser ? _userBubble(message.text) : novaTextBubble(context, message.text),
+        isUser
+            ? _userBubble(message.text)
+            : novaTextBubble(context, message.text),
         if (analysis != null)
           Padding(
             padding: const EdgeInsets.only(top: 8),
@@ -224,7 +244,11 @@ class _MessageRow extends StatelessWidget {
       ),
       child: Text(
         text,
-        style: const TextStyle(fontSize: 13.8, height: 1.4, color: Colors.white),
+        style: const TextStyle(
+          fontSize: 13.8,
+          height: 1.4,
+          color: Colors.white,
+        ),
       ),
     );
   }
@@ -257,6 +281,13 @@ class _ImageBubble extends StatelessWidget {
     final showCaption = caption.isNotEmpty && caption != 'Sent an image';
     final progress = message.uploadProgress;
     final preview = message.localPreviewUrl;
+    // Once a message is persisted server-side, the local file-picker path is
+    // gone (the echoed message from the backend never carries one) — fall
+    // back to fetching the actual bytes from the JWT-protected image route.
+    final canFetchRemote =
+        message.imageFileId != null &&
+        message.imageFileId != 'pending' &&
+        !message.id.startsWith('local-');
 
     return Container(
       clipBehavior: Clip.antiAlias,
@@ -276,12 +307,18 @@ class _ImageBubble extends StatelessWidget {
                   constraints: const BoxConstraints(maxHeight: 240),
                   child: Image.file(File(preview), fit: BoxFit.cover),
                 )
+              else if (canFetchRemote)
+                _RemoteChatImage(messageId: message.id)
               else
                 Container(
                   height: 140,
                   color: t.card,
                   alignment: Alignment.center,
-                  child: Icon(PhosphorIconsRegular.image, size: 26, color: t.ink3),
+                  child: Icon(
+                    PhosphorIconsRegular.image,
+                    size: 26,
+                    color: t.ink3,
+                  ),
                 ),
               if (progress != null)
                 Positioned.fill(
@@ -319,6 +356,57 @@ class _ImageBubble extends StatelessWidget {
   }
 }
 
+// ─── Remote (server-persisted) chat image ────────────────────────────────────
+
+class _RemoteChatImage extends StatefulWidget {
+  final String messageId;
+  const _RemoteChatImage({required this.messageId});
+
+  @override
+  State<_RemoteChatImage> createState() => _RemoteChatImageState();
+}
+
+class _RemoteChatImageState extends State<_RemoteChatImage> {
+  static const _service = ChatService();
+  late final Future<Uint8List> _future = _service.fetchImageBytes(
+    widget.messageId,
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    return FutureBuilder<Uint8List>(
+      future: _future,
+      builder: (context, snap) {
+        if (snap.connectionState != ConnectionState.done) {
+          return Container(
+            height: 140,
+            color: t.card,
+            alignment: Alignment.center,
+            child: const SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+          );
+        }
+        if (snap.hasError || !snap.hasData || snap.data!.isEmpty) {
+          return Container(
+            height: 140,
+            color: t.card,
+            alignment: Alignment.center,
+            child: Icon(PhosphorIconsRegular.image, size: 26, color: t.ink3),
+          );
+        }
+        return ConstrainedBox(
+          constraints: const BoxConstraints(maxHeight: 240),
+          child: Image.memory(snap.data!, fit: BoxFit.cover),
+        );
+      },
+    );
+  }
+}
+
 // ─── Media analysis card ─────────────────────────────────────────────────────
 
 const Map<String, String> _categoryLabel = {
@@ -342,7 +430,10 @@ class _AnalysisCard extends StatelessWidget {
         facts.isEmpty) {
       return const SizedBox.shrink();
     }
-    final headerText = [label, analysis.caption].whereType<String>().where((s) => s.isNotEmpty).join(' — ');
+    final headerText = [
+      label,
+      analysis.caption,
+    ].whereType<String>().where((s) => s.isNotEmpty).join(' — ');
 
     return Container(
       padding: const EdgeInsets.all(8),
@@ -360,7 +451,11 @@ class _AnalysisCard extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 4),
               child: Row(
                 children: [
-                  const Icon(PhosphorIconsRegular.fileMagnifyingGlass, size: 14, color: AppColors.teal),
+                  const Icon(
+                    PhosphorIconsRegular.fileMagnifyingGlass,
+                    size: 14,
+                    color: AppColors.teal,
+                  ),
                   const SizedBox(width: 6),
                   Expanded(
                     child: Text(
@@ -398,13 +493,20 @@ class _AnalysisCard extends StatelessWidget {
                           margin: const EdgeInsets.only(top: 6),
                           width: 5,
                           height: 5,
-                          decoration: const BoxDecoration(color: AppColors.teal, shape: BoxShape.circle),
+                          decoration: const BoxDecoration(
+                            color: AppColors.teal,
+                            shape: BoxShape.circle,
+                          ),
                         ),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
                             facts[i],
-                            style: TextStyle(fontSize: 13.4, height: 1.35, color: t.ink),
+                            style: TextStyle(
+                              fontSize: 13.4,
+                              height: 1.35,
+                              color: t.ink,
+                            ),
                           ),
                         ),
                       ],
@@ -434,33 +536,39 @@ class _StreamingRow extends StatelessWidget {
 
     if (blocks.isNotEmpty) {
       for (var i = 0; i < blocks.length; i++) {
-        children.add(Padding(
-          padding: EdgeInsets.only(top: i == 0 ? 0 : 8),
-          child: BlockRenderer(block: blocks[i]),
-        ));
+        children.add(
+          Padding(
+            padding: EdgeInsets.only(top: i == 0 ? 0 : 8),
+            child: BlockRenderer(block: blocks[i]),
+          ),
+        );
       }
     }
     if (content.isNotEmpty) {
-      children.add(Padding(
-        padding: EdgeInsets.only(top: children.isEmpty ? 0 : 8),
-        child: novaTextBubble(context, content),
-      ));
+      children.add(
+        Padding(
+          padding: EdgeInsets.only(top: children.isEmpty ? 0 : 8),
+          child: novaTextBubble(context, content),
+        ),
+      );
     }
     if (children.isEmpty) {
       // Nothing streamed yet — the staged "thinking" indicator in a soft bubble.
-      children.add(Container(
-        padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
-        decoration: BoxDecoration(
-          color: t.soft,
-          borderRadius: const BorderRadius.only(
-            topLeft: Radius.circular(4),
-            topRight: Radius.circular(16),
-            bottomRight: Radius.circular(16),
-            bottomLeft: Radius.circular(16),
+      children.add(
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
+          decoration: BoxDecoration(
+            color: t.soft,
+            borderRadius: const BorderRadius.only(
+              topLeft: Radius.circular(4),
+              topRight: Radius.circular(16),
+              bottomRight: Radius.circular(16),
+              bottomLeft: Radius.circular(16),
+            ),
           ),
+          child: const NovaThinking(),
         ),
-        child: const NovaThinking(),
-      ));
+      );
     }
 
     return Row(
@@ -470,7 +578,9 @@ class _StreamingRow extends StatelessWidget {
         const SizedBox(width: 8),
         Flexible(
           child: ConstrainedBox(
-            constraints: BoxConstraints(maxWidth: context.screenSize.width * 0.82),
+            constraints: BoxConstraints(
+              maxWidth: context.screenSize.width * 0.82,
+            ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,

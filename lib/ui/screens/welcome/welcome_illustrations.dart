@@ -97,6 +97,8 @@ class _SlideIllustrationState extends State<SlideIllustration>
               return _privacy(context, i, a, widget.tint);
             case 4:
               return _records(context, i, a, widget.tint);
+            case 5:
+              return _handoff(context, i, a, widget.tint);
             default:
               return _dataProtected(context, i, a, widget.tint);
           }
@@ -648,19 +650,268 @@ Widget _emergencyBadge(double i, double a) {
   );
 }
 
-// ── 5 · Data protection — encrypted core inside a ring of ciphered data ──────
+// ── 5 · Handoff — a record card travels from patient to physician ────────────
+
+/// The pieces of the record that get absorbed into the card mid-flight, in the
+/// order they animate in: labs → meds → allergies → history → symptom timeline.
+const _handoffChips = <(IconData, Color)>[
+  (PhosphorIconsFill.flask, AppColors.cyan),
+  (PhosphorIconsFill.pill, AppColors.teal),
+  (PhosphorIconsFill.warning, AppColors.coral),
+  (PhosphorIconsFill.clockCounterClockwise, AppColors.lav),
+  (PhosphorIconsFill.pulse, AppColors.amber),
+];
+
+const _laneY = -52.0; // the patient→physician lane, above the centre line
+const _nodeX = 92.0; // horizontal distance of each node from centre
+
+Widget _handoff(BuildContext context, double i, double a, List<Color> tint) {
+  final t = context.tokens;
+  // The card's position along the lane — every chip aims at wherever it is
+  // *right now*, so the absorptions track the moving target.
+  final travel = _seg(i, 0.18, 0.76, Curves.easeInOutCubic);
+  final cardX = _lerp(-_nodeX, _nodeX, travel);
+  final delivered = _seg(i, 0.74, 1.0, Curves.easeOutCubic);
+
+  return Stack(
+    alignment: Alignment.center,
+    clipBehavior: Clip.none,
+    children: [
+      // lane of dots, lighting up behind the card as it passes
+      Transform.translate(
+        offset: const Offset(0, _laneY),
+        child: SizedBox(
+          width: 124,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [for (var d = 0; d < 7; d++) _laneDot(travel, d, 7, tint, t)],
+          ),
+        ),
+      ),
+
+      _handoffNode(i, a, -_nodeX, 0.0, PhosphorIconsFill.user, 'You',
+          [tint.first, tint.first], t),
+      _handoffNode(i, a, _nodeX, 0.08, PhosphorIconsFill.stethoscope, 'Your doctor',
+          tint, t),
+
+      // the record fragments flying into the card
+      for (var c = 0; c < _handoffChips.length; c++)
+        _handoffChip(i, c, cardX, t),
+
+      // the travelling card — fades out as the brief takes its place
+      _travellingCard(i, a, cardX, tint, t),
+
+      // and the brief it becomes, in the physician's hands
+      _caseBrief(delivered, tint, t),
+    ],
+  );
+}
+
+Widget _laneDot(double travel, int idx, int n, List<Color> tint, dynamic t) {
+  final frac = idx / (n - 1);
+  final lit = ((travel - frac) * 5).clamp(0.0, 1.0);
+  return Container(
+    width: 5,
+    height: 5,
+    decoration: BoxDecoration(
+      shape: BoxShape.circle,
+      color: Color.lerp(t.line, tint.first, lit),
+    ),
+  );
+}
+
+Widget _handoffNode(double i, double a, double x, double delay, IconData icon,
+    String label, List<Color> tint, dynamic t) {
+  final appear = _seg(i, delay, 0.24 + delay, Curves.easeOutBack);
+  if (appear <= 0) return const SizedBox.shrink();
+  // +10.5 offsets the caption below the disc, so the disc itself — not the
+  // column — sits on the lane the card travels along.
+  return Transform.translate(
+    offset: Offset(x, _laneY + 10.5 + _wave(a, x.isNegative ? 0 : 2.2) * 2.5),
+    child: Opacity(
+      opacity: appear.clamp(0.0, 1.0),
+      child: Transform.scale(
+        scale: 0.7 + 0.3 * appear,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _glowDisc(
+              size: 52,
+              tint: tint,
+              glow: 0.28,
+              child: Icon(icon, size: 25, color: Colors.white),
+            ),
+            const SizedBox(height: 7),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: t.ink3,
+              ),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+/// One data fragment: fades in at its home slot, then flies up into the card.
+Widget _handoffChip(double i, int c, double cardX, dynamic t) {
+  final start = 0.20 + c * 0.085;
+  final p = _seg(i, start, start + 0.40, Curves.easeInOutCubic);
+  if (p <= 0) return const SizedBox.shrink();
+  final homeX = -76.0 + c * 38;
+  const homeY = 20.0;
+  final fadeIn = (p / 0.22).clamp(0.0, 1.0);
+  final absorb = ((p - 0.76) / 0.24).clamp(0.0, 1.0); // merges into the card
+  final (icon, color) = _handoffChips[c];
+  return Transform.translate(
+    offset: Offset(_lerp(homeX, cardX, p), _lerp(homeY, _laneY, p)),
+    child: Opacity(
+      opacity: (fadeIn * (1 - absorb)).clamp(0.0, 1.0),
+      child: Transform.scale(
+        scale: _lerp(1.0, 0.35, p) * (0.6 + 0.4 * fadeIn),
+        child: Container(
+          width: 30,
+          height: 30,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: t.card,
+            border: Border.all(color: t.line),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.06),
+                blurRadius: 8,
+                offset: const Offset(0, 3),
+              ),
+            ],
+          ),
+          child: Icon(icon, size: 15, color: color),
+        ),
+      ),
+    ),
+  );
+}
+
+Widget _travellingCard(double i, double a, double cardX, List<Color> tint, dynamic t) {
+  final appear = _seg(i, 0.10, 0.30, Curves.easeOutBack);
+  if (appear <= 0) return const SizedBox.shrink();
+  final handOff = _seg(i, 0.76, 0.88); // dissolves into the case brief
+  final opacity = (appear * (1 - handOff)).clamp(0.0, 1.0);
+  if (opacity <= 0) return const SizedBox.shrink();
+  return Transform.translate(
+    offset: Offset(cardX, _laneY + _wave(a, 1.4) * 2),
+    child: Opacity(
+      opacity: opacity,
+      child: Transform.scale(
+        scale: (0.7 + 0.3 * appear) * _lerp(1.0, 1.12, handOff),
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(11),
+            boxShadow: [
+              BoxShadow(
+                color: tint.first.withValues(alpha: 0.30 + 0.14 * _pulse(a)),
+                blurRadius: 18,
+                offset: const Offset(0, 6),
+              ),
+            ],
+          ),
+          child: _miniCard(58, 42,
+              lines: 3, lineColor: tint.first.withValues(alpha: 0.5), border: t.line),
+        ),
+      ),
+    ),
+  );
+}
+
+Widget _caseBrief(double d, List<Color> tint, dynamic t) {
+  if (d <= 0) return const SizedBox.shrink();
+  return Transform.translate(
+    offset: Offset(_lerp(_nodeX * 0.55, 0, d), _lerp(_laneY, 42, d)),
+    child: Opacity(
+      opacity: d.clamp(0.0, 1.0),
+      child: Transform.scale(
+        scale: _lerp(0.5, 1.0, d),
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(14, 11, 14, 12),
+          decoration: BoxDecoration(
+            color: t.card,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: t.line),
+            boxShadow: [
+              BoxShadow(
+                color: tint.first.withValues(alpha: 0.22),
+                blurRadius: 20,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(PhosphorIconsFill.sealCheck, size: 15, color: tint.first),
+                  const SizedBox(width: 6),
+                  Text(
+                    'Pre-consult case brief',
+                    style: TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 0.1,
+                      color: t.ink,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 9),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  for (final chip in _handoffChips)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 3),
+                      child: Container(
+                        width: 22,
+                        height: 22,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: chip.$2.withValues(alpha: 0.12),
+                        ),
+                        child: Icon(chip.$1, size: 12, color: chip.$2),
+                      ),
+                    ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+// ── 6 · Data protection — encrypted core inside a ring of ciphered data ──────
 
 Widget _dataProtected(BuildContext context, double i, double a, List<Color> tint) {
   final t = context.tokens;
   final coreIntro = _seg(i, 0.0, 0.34, Curves.easeOutBack);
-  const badges = <(String, double)>[('HIPAA', 0.0), ('DPDP 2023', 0.11)];
+  const badges = <(String, double)>[
+    ('HIPAA', 0.0),
+    ('HL7 FHIR', 0.05),
+    ('DPDP 2023', 0.10),
+    ('AWS secured', 0.15),
+  ];
   return Stack(
     alignment: Alignment.center,
     clipBehavior: Clip.none,
     children: [
       // soft halo breathing behind the vault
       Transform.translate(
-        offset: const Offset(0, -18),
+        offset: const Offset(0, -30),
         child: Transform.scale(
           scale: 1 + 0.04 * _wave(a),
           child: Container(
@@ -679,7 +930,7 @@ Widget _dataProtected(BuildContext context, double i, double a, List<Color> tint
 
       // slowly rotating ring of "ciphered" dashes
       Transform.translate(
-        offset: const Offset(0, -18),
+        offset: const Offset(0, -30),
         child: Transform.rotate(
           angle: a * 2 * math.pi * 0.2,
           child: SizedBox(
@@ -697,7 +948,7 @@ Widget _dataProtected(BuildContext context, double i, double a, List<Color> tint
 
       // the encrypted core
       Transform.translate(
-        offset: Offset(0, -18 + _wave(a) * 3),
+        offset: Offset(0, -30 + _wave(a) * 3),
         child: Opacity(
           opacity: _seg(i, 0.0, 0.3),
           child: Transform.scale(
@@ -714,16 +965,17 @@ Widget _dataProtected(BuildContext context, double i, double a, List<Color> tint
 
       // compliance badges settling in underneath
       Positioned(
-        bottom: 2,
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            for (final b in badges)
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 4),
-                child: _complianceBadge(i, b.$1, b.$2, t, tint),
-              ),
-          ],
+        bottom: 0,
+        child: SizedBox(
+          width: 248,
+          child: Wrap(
+            alignment: WrapAlignment.center,
+            spacing: 6,
+            runSpacing: 6,
+            children: [
+              for (final b in badges) _complianceBadge(i, b.$1, b.$2, t, tint),
+            ],
+          ),
         ),
       ),
     ],
@@ -733,7 +985,7 @@ Widget _dataProtected(BuildContext context, double i, double a, List<Color> tint
 /// One dash on the rotating ring — reads as a fragment of encrypted data.
 Widget _cipherDash(double i, double a, int idx, int n, List<Color> tint) {
   final angle = idx * 2 * math.pi / n;
-  const radius = 70.0;
+  const radius = 62.0;
   final appear = _seg(i, 0.12 + idx * 0.04, 0.4 + idx * 0.04);
   if (appear <= 0) return const SizedBox.shrink();
   // Each dash twinkles on its own phase, so the ring never reads as static.
@@ -758,14 +1010,15 @@ Widget _cipherDash(double i, double a, int idx, int n, List<Color> tint) {
 }
 
 Widget _complianceBadge(double i, String label, double delay, dynamic t, List<Color> tint) {
-  final appear = _seg(i, 0.58 + delay, 0.86 + delay, Curves.easeOutBack);
-  if (appear <= 0) return const SizedBox.shrink();
+  // No early return: the badge always occupies its slot so the Wrap doesn't
+  // reflow as the row staggers in.
+  final appear = _seg(i, 0.54 + delay, 0.80 + delay, Curves.easeOutBack);
   return Opacity(
     opacity: appear.clamp(0.0, 1.0),
     child: Transform.translate(
       offset: Offset(0, (1 - appear) * 12),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
           color: t.card,
           borderRadius: BorderRadius.circular(999),
@@ -781,12 +1034,12 @@ Widget _complianceBadge(double i, String label, double delay, dynamic t, List<Co
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(PhosphorIconsFill.sealCheck, size: 15, color: tint.first),
+            Icon(PhosphorIconsFill.sealCheck, size: 13, color: tint.first),
             const SizedBox(width: 5),
             Text(
               label,
               style: TextStyle(
-                fontSize: 12,
+                fontSize: 11,
                 fontWeight: FontWeight.w700,
                 letterSpacing: 0.2,
                 color: t.ink2,
