@@ -53,10 +53,18 @@ class ChatService {
     String conversationId,
     String filePath,
     String query, {
+    String mimeType = 'image/jpeg',
     void Function(int percent)? onProgress,
   }) async {
+    // The declared part content-type matters: the service only accepts
+    // image/png and image/jpeg, and Dio would otherwise send
+    // application/octet-stream and get a 400 back.
     final form = FormData.fromMap({
-      'image': await MultipartFile.fromFile(filePath),
+      'image': await MultipartFile.fromFile(
+        filePath,
+        filename: filePath.split(RegExp(r'[/\\]')).last,
+        contentType: DioMediaType.parse(mimeType),
+      ),
       'query': query,
     });
     final res = await dio.post(
@@ -72,6 +80,14 @@ class ChatService {
       assistantMessage:
           ChatMessage.fromJson(Map<String, dynamic>.from(data['assistantMessage'] as Map)),
     );
+  }
+
+  /// Regenerates the doctor-facing SOAP note for a conversation. Always a
+  /// fresh generation from the latest turns, so calling it again after more
+  /// chat yields an updated note.
+  Future<SoapNote> generateSoapNote(String conversationId) async {
+    final res = await dio.post('/chat/conversations/$conversationId/soap');
+    return SoapNote.fromJson(Map<String, dynamic>.from(res.data as Map));
   }
 
   static List<ChatConversation> _asConversations(dynamic data) {

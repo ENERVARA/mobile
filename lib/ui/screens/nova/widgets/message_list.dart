@@ -9,6 +9,7 @@ import '../../../../core/theme/context_ext.dart';
 import '../../../../core/utils/formatters.dart';
 import '../../../../data/models/chat.dart';
 import '../../../../state/chat_provider.dart';
+import '../../../../state/nova_ui_provider.dart';
 import '../../../widgets/logo.dart';
 import 'nova_blocks.dart';
 import 'nova_thinking.dart';
@@ -75,6 +76,25 @@ class _MessageListState extends ConsumerState<MessageList> {
       rows.add(_StreamingRow(
         content: chat.streamingContent,
         blocks: chat.streamingBlocks,
+        wakingUp: chat.isWakingUp,
+      ));
+    }
+
+    // The suggested reply only makes sense while it's still the newest turn.
+    final followUp = chat.isStreaming || chat.isSendingImage
+        ? null
+        : _pendingFollowUp(chat.messages);
+    if (followUp != null) {
+      rows.add(Padding(
+        // Line the chip up with the bubbles, past the avatar gutter.
+        padding: const EdgeInsets.only(left: 34, top: 2),
+        child: Align(
+          alignment: Alignment.centerLeft,
+          child: FollowUpChip(
+            question: followUp,
+            onTap: () => ref.read(novaUiProvider.notifier).send(followUp),
+          ),
+        ),
       ));
     }
 
@@ -86,6 +106,25 @@ class _MessageListState extends ConsumerState<MessageList> {
           Padding(padding: const EdgeInsets.only(bottom: 10), child: r),
       ],
     );
+  }
+
+  /// The single follow-up question offered by the last assistant turn, if that
+  /// turn is still the tail of the thread. The contract caps it at one; anything
+  /// beyond the first is ignored rather than rendered as a wall of chips.
+  String? _pendingFollowUp(List<ChatMessage> messages) {
+    if (messages.isEmpty) return null;
+    final last = messages.last;
+    if (last.role != 'assistant') return null;
+
+    final fromBlocks = last.blocks
+        ?.whereType<FollowUpQuestionsBlock>()
+        .expand((b) => b.questions)
+        .where((q) => q.trim().isNotEmpty);
+    if (fromBlocks != null && fromBlocks.isNotEmpty) return fromBlocks.first.trim();
+
+    final fromField = last.followupQuestions?.where((q) => q.trim().isNotEmpty);
+    if (fromField != null && fromField.isNotEmpty) return fromField.first.trim();
+    return null;
   }
 
   PanelMessage _toPanel(ChatMessage m, int? uploadProgress) {
@@ -181,8 +220,10 @@ class _MessageRow extends StatelessWidget {
     if (message.imageFileId != null) {
       return _ImageBubble(message: message, isUser: isUser);
     }
+    final analysis = message.analysis;
     final blocks = message.blocks;
     if (blocks != null && blocks.isNotEmpty) {
+      final calm = isCrisisTurn(blocks);
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
@@ -190,12 +231,18 @@ class _MessageRow extends StatelessWidget {
           for (var i = 0; i < blocks.length; i++)
             Padding(
               padding: EdgeInsets.only(top: i == 0 ? 0 : 8),
-              child: BlockRenderer(block: blocks[i]),
+              child: BlockRenderer(block: blocks[i], calmCritical: calm),
+            ),
+          // An image turn can carry both — don't let the blocks swallow the
+          // "what we made of your upload" card.
+          if (analysis != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: _AnalysisCard(analysis: analysis),
             ),
         ],
       );
     }
-    final analysis = message.analysis;
     return Column(
       crossAxisAlignment: isUser ? CrossAxisAlignment.end : CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
@@ -274,15 +321,16 @@ class _ImageBubble extends StatelessWidget {
               if (preview != null && preview.isNotEmpty)
                 ConstrainedBox(
                   constraints: const BoxConstraints(maxHeight: 240),
-                  child: Image.file(File(preview), fit: BoxFit.cover),
+                  child: Image.file(
+                    File(preview),
+                    fit: BoxFit.cover,
+                    // The picker writes to a cache dir the OS can reclaim.
+                    errorBuilder: (_, __, ___) => _imagePlaceholder(t),
+                  ),
                 )
               else
-                Container(
-                  height: 140,
-                  color: t.card,
-                  alignment: Alignment.center,
-                  child: Icon(PhosphorIconsRegular.image, size: 26, color: t.ink3),
-                ),
+                // No on-device copy — an upload from an earlier session.
+                _imagePlaceholder(t),
               if (progress != null)
                 Positioned.fill(
                   child: ColoredBox(
@@ -319,14 +367,30 @@ class _ImageBubble extends StatelessWidget {
   }
 }
 
+Widget _imagePlaceholder(AppTokens t) {
+  return Container(
+    height: 140,
+    color: t.card,
+    alignment: Alignment.center,
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(PhosphorIconsRegular.image, size: 26, color: t.ink3),
+        const SizedBox(height: 6),
+        Text(
+          'Image sent',
+          style: TextStyle(fontSize: 11.5, color: t.ink3),
+        ),
+      ],
+    ),
+  );
+}
+
 // ─── Media analysis card ─────────────────────────────────────────────────────
 
-const Map<String, String> _categoryLabel = {
-  'lab_report': 'Lab report',
-  'prescription': 'Prescription',
-  'document_extraction': 'Document analysis',
-};
-
+/// What the backend made of an upload. The service classifies the image itself
+/// and reports back via `category` / `route`, so this just reflects its
+/// decision — a photo it looked at, or a document it parsed.
 class _AnalysisCard extends StatelessWidget {
   final MessageAnalysis analysis;
   const _AnalysisCard({required this.analysis});
@@ -335,14 +399,11 @@ class _AnalysisCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = context.tokens;
     final facts = analysis.extractedFacts;
-    final cat = analysis.category;
-    final label = cat != null ? (_categoryLabel[cat] ?? cat) : null;
-    if (label == null &&
-        (analysis.caption == null || analysis.caption!.isEmpty) &&
-        facts.isEmpty) {
-      return const SizedBox.shrink();
-    }
-    final headerText = [label, analysis.caption].whereType<String>().where((s) => s.isNotEmpty).join(' — ');
+    if (analysis.isEmpty) return const SizedBox.shrink();
+
+    final label = analysis.categoryLabel;
+    final caption = analysis.caption?.trim();
+    final isDoc = analysis.isDocument;
 
     return Container(
       padding: const EdgeInsets.all(8),
@@ -355,16 +416,22 @@ class _AnalysisCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          if (headerText.isNotEmpty)
+          if (label != null)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 4),
               child: Row(
                 children: [
-                  const Icon(PhosphorIconsRegular.fileMagnifyingGlass, size: 14, color: AppColors.teal),
+                  Icon(
+                    isDoc
+                        ? PhosphorIconsRegular.fileMagnifyingGlass
+                        : PhosphorIconsRegular.camera,
+                    size: 14,
+                    color: AppColors.teal,
+                  ),
                   const SizedBox(width: 6),
                   Expanded(
                     child: Text(
-                      headerText.toUpperCase(),
+                      label.toUpperCase(),
                       style: TextStyle(
                         fontSize: 11.2,
                         fontWeight: FontWeight.w600,
@@ -373,9 +440,24 @@ class _AnalysisCard extends StatelessWidget {
                       ),
                     ),
                   ),
+                  if (analysis.sizeBytes != null)
+                    Text(
+                      _fileSize(analysis.sizeBytes!),
+                      style: TextStyle(fontSize: 10.5, color: t.ink3),
+                    ),
                 ],
               ),
             ),
+          if (caption != null && caption.isNotEmpty) ...[
+            const SizedBox(height: 5),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              child: Text(
+                caption,
+                style: TextStyle(fontSize: 12.9, height: 1.35, color: t.ink2),
+              ),
+            ),
+          ],
           if (facts.isNotEmpty) ...[
             const SizedBox(height: 6),
             Container(
@@ -418,6 +500,12 @@ class _AnalysisCard extends StatelessWidget {
       ),
     );
   }
+
+  static String _fileSize(int bytes) {
+    if (bytes < 1024) return '$bytes B';
+    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(0)} KB';
+    return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+  }
 }
 
 // ─── Live streaming row ──────────────────────────────────────────────────────
@@ -425,7 +513,8 @@ class _AnalysisCard extends StatelessWidget {
 class _StreamingRow extends StatelessWidget {
   final String content;
   final List<MessageBlock> blocks;
-  const _StreamingRow({required this.content, required this.blocks});
+  final bool wakingUp;
+  const _StreamingRow({required this.content, required this.blocks, this.wakingUp = false});
 
   @override
   Widget build(BuildContext context) {
@@ -433,10 +522,11 @@ class _StreamingRow extends StatelessWidget {
     final children = <Widget>[];
 
     if (blocks.isNotEmpty) {
+      final calm = isCrisisTurn(blocks);
       for (var i = 0; i < blocks.length; i++) {
         children.add(Padding(
           padding: EdgeInsets.only(top: i == 0 ? 0 : 8),
-          child: BlockRenderer(block: blocks[i]),
+          child: BlockRenderer(block: blocks[i], calmCritical: calm),
         ));
       }
     }
@@ -459,7 +549,7 @@ class _StreamingRow extends StatelessWidget {
             bottomLeft: Radius.circular(16),
           ),
         ),
-        child: const NovaThinking(),
+        child: NovaThinking(wakingUp: wakingUp),
       ));
     }
 

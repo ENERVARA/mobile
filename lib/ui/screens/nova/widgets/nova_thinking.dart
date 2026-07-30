@@ -21,7 +21,12 @@ const int _stageMs = 1600;
 
 /// Animated three-dot "thinking" indicator + rotating stage caption.
 class NovaThinking extends StatefulWidget {
-  const NovaThinking({super.key});
+  /// The backend idles after ~15 min and takes 10–15 s to boot. When nothing
+  /// has come back yet, say so rather than letting the stage captions imply
+  /// work is happening.
+  final bool wakingUp;
+
+  const NovaThinking({super.key, this.wakingUp = false});
 
   @override
   State<NovaThinking> createState() => _NovaThinkingState();
@@ -64,7 +69,7 @@ class _NovaThinkingState extends State<NovaThinking>
         const SizedBox(width: 8),
         Flexible(
           child: Text(
-            '${_stages[_i]}…',
+            widget.wakingUp ? 'Waking up the assistant…' : '${_stages[_i]}…',
             style: TextStyle(
               fontSize: 13,
               fontWeight: FontWeight.w500,

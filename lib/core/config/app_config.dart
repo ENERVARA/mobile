@@ -25,4 +25,10 @@ class AppConfig {
     'application/dicom',
   ];
   static const acceptedExtensions = <String>['pdf', 'jpg', 'jpeg', 'png', 'dcm'];
+
+  /// Chat image uploads are narrower than report uploads: the service accepts
+  /// `image/png` and `image/jpeg` only, caps at 10 MB, and sniffs the bytes —
+  /// a mislabelled file is rejected server-side, so filter before sending.
+  static const chatImageMimeTypes = <String>['image/png', 'image/jpeg'];
+  static const chatImageExtensions = <String>['png', 'jpg', 'jpeg'];
 }

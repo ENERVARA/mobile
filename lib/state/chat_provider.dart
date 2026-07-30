@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../core/api/api_client.dart';
 import '../core/api/sse_client.dart';
 import '../data/models/chat.dart';
 import '../data/services/chat_service.dart';
@@ -25,6 +28,14 @@ class ChatState {
   final int? imageUploadProgress;
   final String? streamError;
 
+  /// Sticky for the conversation — flipped true by an `answer_state` block and
+  /// never back down until the thread changes. Reveals the SOAP-note action.
+  final bool showDoctorSummary;
+
+  /// Nothing has come back yet and we're past the grace period — the backend
+  /// is probably cold-starting.
+  final bool isWakingUp;
+
   const ChatState({
     this.conversations = const [],
     this.recentConversations = const [],
@@ -39,6 +50,8 @@ class ChatState {
     this.isSendingImage = false,
     this.imageUploadProgress,
     this.streamError,
+    this.showDoctorSummary = false,
+    this.isWakingUp = false,
   });
 
   ChatState copyWith({
@@ -58,6 +71,8 @@ class ChatState {
     bool clearImageProgress = false,
     String? streamError,
     bool clearStreamError = false,
+    bool? showDoctorSummary,
+    bool? isWakingUp,
   }) {
     return ChatState(
       conversations: conversations ?? this.conversations,
@@ -75,6 +90,8 @@ class ChatState {
       imageUploadProgress:
           clearImageProgress ? null : (imageUploadProgress ?? this.imageUploadProgress),
       streamError: clearStreamError ? null : (streamError ?? this.streamError),
+      showDoctorSummary: showDoctorSummary ?? this.showDoctorSummary,
+      isWakingUp: isWakingUp ?? this.isWakingUp,
     );
   }
 }
@@ -85,6 +102,23 @@ class ChatController extends StateNotifier<ChatState> {
   final Ref _ref;
   ChatService get _service => _ref.read(chatServiceProvider);
   CancelToken? _cancelToken;
+
+  /// On-device paths for images uploaded during this session, keyed by the
+  /// persisted message id. The server round-trip only returns a file id, so
+  /// without this every refetch would blank the user's photo back to a
+  /// placeholder. Images from *earlier* sessions have no entry here — they
+  /// need a backend blob route to display (see `_ImageBubble`).
+  final Map<String, String> _localPreviews = {};
+
+  /// Re-attaches any known local preview to server-sourced messages.
+  List<ChatMessage> _withPreviews(List<ChatMessage> messages) {
+    if (_localPreviews.isEmpty) return messages;
+    return messages
+        .map((m) => _localPreviews.containsKey(m.id)
+            ? m.copyWith(localPreviewUrl: _localPreviews[m.id])
+            : m)
+        .toList();
+  }
 
   /// Set when the user hits Stop, so we keep the partial reply on screen
   /// instead of refetching a server thread that never persisted it.
@@ -119,6 +153,7 @@ class ChatController extends StateNotifier<ChatState> {
       streamingContent: '',
       streamingBlocks: const [],
       clearStreamError: true,
+      showDoctorSummary: false,
     );
     return created;
   }
@@ -131,19 +166,28 @@ class ChatController extends StateNotifier<ChatState> {
       streamingContent: '',
       streamingBlocks: const [],
       clearStreamError: true,
+      showDoctorSummary: false,
     );
     try {
       final res = await _service.getConversation(id);
       state = state.copyWith(
-        messages: res.messages,
+        messages: _withPreviews(res.messages),
         conversations: state.conversations
             .map((c) => c.id == res.conversation.id ? res.conversation : c)
             .toList(),
         isLoadingMessages: false,
+        showDoctorSummary: _doctorSummaryIn(res.messages),
       );
     } catch (_) {
       state = state.copyWith(isLoadingMessages: false);
     }
+  }
+
+  /// The flag is sticky, so any `answer_state` in the thread's history that
+  /// turned it on keeps it on when the conversation is re-opened.
+  static bool _doctorSummaryIn(List<ChatMessage> messages) {
+    return messages.any((m) =>
+        m.blocks?.whereType<AnswerStateBlock>().any((b) => b.showDoctorSummary) ?? false);
   }
 
   Future<void> sendMessage(String content) async {
@@ -173,28 +217,47 @@ class ChatController extends StateNotifier<ChatState> {
 
     var followups = <String>[];
 
+    // A cold container takes 10–15 s to boot. Past 3 s of total silence, say
+    // we're waking it rather than showing pipeline stages that aren't running.
+    final wakeTimer = Timer(const Duration(seconds: 3), () {
+      if (state.isStreaming) state = state.copyWith(isWakingUp: true);
+    });
+    void settled() {
+      wakeTimer.cancel();
+      if (state.isWakingUp) state = state.copyWith(isWakingUp: false);
+    }
+
     await streamChatMessage(
       conversationId: conversationId,
       content: trimmed,
       cancelToken: _cancelToken,
       handlers: ChatStreamHandlers(
+        onFirstEvent: settled,
         onChunk: (text) {
           state = state.copyWith(streamingContent: state.streamingContent + text);
         },
         onBlock: (block) {
-          state = state.copyWith(
-            streamingBlocks: [...state.streamingBlocks, MessageBlock.fromJson(block)],
-          );
+          final parsed = MessageBlock.fromJson(block);
+          // `answer_state` is control, not content — read the flag, don't render.
+          if (parsed is AnswerStateBlock) {
+            if (parsed.showDoctorSummary) {
+              state = state.copyWith(showDoctorSummary: true);
+            }
+            return;
+          }
+          state = state.copyWith(streamingBlocks: [...state.streamingBlocks, parsed]);
         },
         onDone: (payload) {
           final fq = payload['followup_questions'];
           if (fq is List) followups = fq.map((e) => e.toString()).toList();
         },
         onError: (message) {
+          settled();
           state = state.copyWith(streamError: message);
         },
       ),
     );
+    settled();
 
     // Finalise the streamed content into a real assistant message.
     final buffered = state.streamingContent;
@@ -238,13 +301,27 @@ class ChatController extends StateNotifier<ChatState> {
       final res = await _service.getConversation(conversationId);
       if (state.activeConversationId == conversationId) {
         state = state.copyWith(
-          messages: res.messages,
+          messages: _withPreviews(res.messages),
           conversations: state.conversations
               .map((c) => c.id == res.conversation.id ? res.conversation : c)
               .toList(),
+          showDoctorSummary: state.showDoctorSummary || _doctorSummaryIn(res.messages),
         );
       }
     } catch (_) {}
+  }
+
+  /// Regenerates the doctor-facing SOAP note for the active conversation.
+  /// Returns null if there's no active thread or the request fails (the Dio
+  /// interceptor has already surfaced the error toast).
+  Future<SoapNote?> generateSoapNote() async {
+    final conversationId = state.activeConversationId;
+    if (conversationId == null) return null;
+    try {
+      return await _service.generateSoapNote(conversationId);
+    } catch (_) {
+      return null;
+    }
   }
 
   Future<void> sendImageMessage(String filePath, String query, String mimeType) async {
@@ -276,8 +353,12 @@ class ChatController extends StateNotifier<ChatState> {
         conversationId,
         filePath,
         trimmedQuery,
+        mimeType: mimeType,
         onProgress: (p) => state = state.copyWith(imageUploadProgress: p),
       );
+      // Remember the on-device path under the persisted id so later refetches
+      // can still show the photo the user actually sent.
+      _localPreviews[result.userMessage.id] = filePath;
       if (state.activeConversationId == conversationId) {
         final deduped = state.messages
             .where((m) =>
@@ -286,19 +367,29 @@ class ChatController extends StateNotifier<ChatState> {
                 m.id != result.assistantMessage.id)
             .toList();
         state = state.copyWith(
-          messages: [...deduped, result.userMessage, result.assistantMessage],
+          messages: [
+            ...deduped,
+            result.userMessage.copyWith(localPreviewUrl: filePath),
+            result.assistantMessage,
+          ],
           conversations: state.conversations
               .map((c) => c.id == conversationId
                   ? c.copyWith(lastMessageAt: DateTime.now().toIso8601String())
                   : c)
               .toList(),
+          showDoctorSummary: state.showDoctorSummary ||
+              _doctorSummaryIn([result.assistantMessage]),
         );
       }
     } catch (e) {
       if (state.activeConversationId == conversationId) {
+        // Surface what the service actually said — a rejected format, an
+        // oversized file, or uploads being disabled all land here.
+        final apiError = (e is DioException) ? e.error : null;
         state = state.copyWith(
           messages: state.messages.where((m) => m.id != localId).toList(),
-          streamError: 'Failed to send image',
+          streamError:
+              apiError is ApiError ? apiError.message : "Couldn't send that image",
         );
       }
     } finally {
@@ -332,7 +423,7 @@ class ChatController extends StateNotifier<ChatState> {
   void stopStream() {
     _stopped = true;
     _cancelToken?.cancel();
-    state = state.copyWith(isStreaming: false);
+    state = state.copyWith(isStreaming: false, isWakingUp: false);
     _cancelToken = null;
   }
 
@@ -346,6 +437,8 @@ class ChatController extends StateNotifier<ChatState> {
       streamingBlocks: const [],
       isStreaming: false,
       clearStreamError: true,
+      showDoctorSummary: false,
+      isWakingUp: false,
     );
   }
 }

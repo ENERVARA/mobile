@@ -12,20 +12,32 @@ import '../../../../data/models/chat.dart';
 /// to plain text (if any) or renders nothing.
 class BlockRenderer extends StatelessWidget {
   final MessageBlock block;
-  const BlockRenderer({super.key, required this.block});
+
+  /// True when this turn is a mental-health crisis response. The integration
+  /// contract is explicit that those must read as calm and supportive, never
+  /// as an alarming red error — see [isCrisisTurn].
+  final bool calmCritical;
+
+  const BlockRenderer({super.key, required this.block, this.calmCritical = false});
 
   @override
   Widget build(BuildContext context) {
     final b = block;
     if (b is SummaryBlock) return _summaryBubble(context, b.text);
     if (b is ConditionListBlock) return _ConditionCards(conditions: b.conditions);
-    if (b is WarningBlock) return _WarningBanner(text: b.text, severity: b.severity);
+    if (b is WarningBlock) {
+      return _WarningBanner(text: b.text, severity: b.severity, calm: calmCritical);
+    }
     if (b is NextStepsBlock) return _NextSteps(steps: b.steps);
     if (b is BulletListBlock) return _BulletList(title: b.title, items: b.items);
     if (b is KeyPointsBlock) return _KeyPoints(points: b.points);
     if (b is DecisionBlock) return _DecisionBanner(verdict: b.verdict, rationale: b.rationale);
+    if (b is LabTestsBlock) return _LabTests(tests: b.tests);
     if (b is OtcMedicationsBlock) return _OtcMedications(meds: b.medications);
+    // Rendered separately as a tappable chip at the tail of the thread.
     if (b is FollowUpQuestionsBlock) return const SizedBox.shrink();
+    // Control block, not content.
+    if (b is AnswerStateBlock) return const SizedBox.shrink();
     if (b is UnknownBlock) {
       final t = b.text;
       if (t != null && t.trim().isNotEmpty) return _summaryBubble(context, t);
@@ -33,6 +45,14 @@ class BlockRenderer extends StatelessWidget {
     }
     return const SizedBox.shrink();
   }
+}
+
+/// Distinguishes the two canned `critical` turns by block shape: a
+/// mental-health crisis leads with an empathetic `summary` before the warning,
+/// a physical emergency opens on the warning itself.
+bool isCrisisTurn(List<MessageBlock> blocks) {
+  if (blocks.isEmpty || blocks.first is! SummaryBlock) return false;
+  return blocks.any((b) => b is WarningBlock && b.severity == 'critical');
 }
 
 /// A solid-teal Nova text bubble (used for `summary` blocks + plain replies).
@@ -126,16 +146,19 @@ class _ConditionCards extends StatelessWidget {
   final List<ConditionEntry> conditions;
   const _ConditionCards({required this.conditions});
 
-  /// high → coral, moderate/med → amber, else → teal-d.
+  /// The documented vocabulary is "most likely" / "possible" / "less likely";
+  /// the legacy high/moderate wording is still matched so older persisted
+  /// threads keep their colours.
   ({Color bg, Color fg}) _style(String value) {
     final v = value.toLowerCase();
-    if (v.contains('high')) {
+    if (v.contains('most likely') || v.contains('high')) {
       return (bg: AppColors.coral.withValues(alpha: 0.12), fg: AppColors.coral);
     }
-    if (v.contains('mod') || v.contains('med')) {
-      return (bg: AppColors.amber.withValues(alpha: 0.15), fg: AppColors.amber);
+    if (v.contains('less likely') || v.contains('low') || v.contains('unlikely')) {
+      return (bg: AppColors.teal.withValues(alpha: 0.12), fg: AppColors.tealD);
     }
-    return (bg: AppColors.teal.withValues(alpha: 0.12), fg: AppColors.tealD);
+    // "possible" and the legacy moderate/medium wording.
+    return (bg: AppColors.amber.withValues(alpha: 0.15), fg: AppColors.amber);
   }
 
   @override
@@ -152,18 +175,33 @@ class _ConditionCards extends StatelessWidget {
             if (i > 0) Divider(height: 1, thickness: 1, color: t.line),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 10),
-              child: Row(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
                 children: [
-                  Expanded(
-                    child: Text(
-                      conditions[i].name,
-                      style: TextStyle(fontSize: 13.8, fontWeight: FontWeight.w600, color: t.ink),
-                    ),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          conditions[i].name,
+                          style:
+                              TextStyle(fontSize: 13.8, fontWeight: FontWeight.w600, color: t.ink),
+                        ),
+                      ),
+                      if (conditions[i].likelihood != null &&
+                          conditions[i].likelihood!.trim().isNotEmpty) ...[
+                        const SizedBox(width: 8),
+                        _pill(conditions[i].likelihood!, _style(conditions[i].likelihood!)),
+                      ],
+                    ],
                   ),
-                  if (conditions[i].likelihood != null &&
-                      conditions[i].likelihood!.trim().isNotEmpty) ...[
-                    const SizedBox(width: 8),
-                    _pill(conditions[i].likelihood!, _style(conditions[i].likelihood!)),
+                  if (conditions[i].description != null &&
+                      conditions[i].description!.trim().isNotEmpty) ...[
+                    const SizedBox(height: 5),
+                    Text(
+                      conditions[i].description!,
+                      style: TextStyle(fontSize: 12.9, height: 1.35, color: t.ink2),
+                    ),
                   ],
                 ],
               ),
@@ -193,26 +231,52 @@ class _ConditionCards extends StatelessWidget {
 
 // ─── warning ─────────────────────────────────────────────────────────────────
 
+/// `severity` drives the styling: `info` stays subtle, `caution` is amber,
+/// `critical` is prominent. The one exception is a mental-health crisis
+/// ([calm]) — still critical, still front-and-center, but rendered in the
+/// supportive teal rather than emergency coral.
 class _WarningBanner extends StatelessWidget {
   final String? text;
   final String? severity;
-  const _WarningBanner({this.text, this.severity});
+  final bool calm;
+  const _WarningBanner({this.text, this.severity, this.calm = false});
 
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
-    final body = (text != null && text!.trim().isNotEmpty)
-        ? text!
-        : 'Please review this carefully.';
+    final body =
+        (text != null && text!.trim().isNotEmpty) ? text! : 'Please review this carefully.';
     final critical = severity == 'critical';
+    final info = severity == 'info';
+
+    late final Color accent;
+    late final String label;
+    late final IconData icon;
+    if (critical && calm) {
+      accent = AppColors.teal;
+      label = 'SUPPORT IS AVAILABLE';
+      icon = PhosphorIconsFill.heart;
+    } else if (critical) {
+      accent = AppColors.coral;
+      label = 'URGENT';
+      icon = PhosphorIconsFill.warning;
+    } else if (info) {
+      accent = AppColors.teal;
+      label = 'NOTE';
+      icon = PhosphorIconsFill.info;
+    } else {
+      accent = AppColors.amber;
+      label = 'IMPORTANT';
+      icon = PhosphorIconsFill.warningCircle;
+    }
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
       decoration: BoxDecoration(
-        color: AppColors.coral.withValues(alpha: critical ? 0.12 : 0.08),
+        color: info ? t.soft : accent.withValues(alpha: critical ? 0.12 : 0.09),
         borderRadius: BorderRadius.circular(14),
         border: Border.all(
-          color: critical ? AppColors.coral : AppColors.coral.withValues(alpha: 0.3),
+          color: critical ? accent : (info ? t.line : accent.withValues(alpha: 0.35)),
           width: critical ? 2 : 1,
         ),
       ),
@@ -223,8 +287,11 @@ class _WarningBanner extends StatelessWidget {
             width: 26,
             height: 26,
             alignment: Alignment.center,
-            decoration: const BoxDecoration(color: AppColors.coral, shape: BoxShape.circle),
-            child: const Icon(PhosphorIconsFill.warning, size: 15, color: Colors.white),
+            decoration: BoxDecoration(
+              color: info ? accent.withValues(alpha: 0.15) : accent,
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, size: 15, color: info ? accent : Colors.white),
           ),
           const SizedBox(width: 10),
           Expanded(
@@ -233,12 +300,12 @@ class _WarningBanner extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(
-                  critical ? 'URGENT' : 'IMPORTANT',
-                  style: const TextStyle(
+                  label,
+                  style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w700,
                     letterSpacing: 0.7,
-                    color: AppColors.coral,
+                    color: info ? t.ink2 : accent,
                   ),
                 ),
                 const SizedBox(height: 2),
@@ -541,6 +608,141 @@ class _DecisionBanner extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+// ─── lab_tests ───────────────────────────────────────────────────────────────
+
+class _LabTests extends StatelessWidget {
+  final List<LabTest> tests;
+  const _LabTests({required this.tests});
+
+  ({Color bg, Color fg}) _urgencyStyle(String value) {
+    switch (value.toLowerCase()) {
+      case 'urgent':
+        return (bg: AppColors.coral.withValues(alpha: 0.12), fg: AppColors.coral);
+      case 'soon':
+        return (bg: AppColors.amber.withValues(alpha: 0.15), fg: AppColors.amber);
+      default:
+        return (bg: AppColors.teal.withValues(alpha: 0.12), fg: AppColors.tealD);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (tests.isEmpty) return const SizedBox.shrink();
+    final t = context.tokens;
+    return _card(
+      context,
+      header: _cardHeader(context, icon: PhosphorIconsBold.testTube, label: 'Suggested tests'),
+      body: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (var i = 0; i < tests.length; i++) ...[
+            if (i > 0) Divider(height: 1, thickness: 1, color: t.line),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 4,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      Text(
+                        tests[i].name,
+                        style: TextStyle(fontSize: 14.4, fontWeight: FontWeight.w600, color: t.ink),
+                      ),
+                      if (tests[i].urgency != null && tests[i].urgency!.trim().isNotEmpty)
+                        Builder(builder: (_) {
+                          final s = _urgencyStyle(tests[i].urgency!);
+                          return Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: s.bg,
+                              borderRadius: BorderRadius.circular(999),
+                            ),
+                            child: Text(
+                              tests[i].urgency!.toUpperCase(),
+                              style: TextStyle(
+                                fontSize: 10.5,
+                                fontWeight: FontWeight.w700,
+                                letterSpacing: 0.3,
+                                color: s.fg,
+                              ),
+                            ),
+                          );
+                        }),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    tests[i].reason,
+                    style: TextStyle(fontSize: 13.1, height: 1.35, color: t.ink2),
+                  ),
+                ],
+              ),
+            ),
+          ],
+          Container(
+            decoration: BoxDecoration(border: Border(top: BorderSide(color: t.line))),
+            padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 8),
+            child: Text(
+              'Suggestions to discuss with your doctor — not test orders.',
+              style: TextStyle(
+                fontSize: 10.9,
+                height: 1.35,
+                fontStyle: FontStyle.italic,
+                color: t.ink3,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─── follow_up_questions ─────────────────────────────────────────────────────
+
+/// The single suggested-reply chip. The contract caps this at one question per
+/// turn, so this renders exactly one — tapping it sends its text as the next
+/// turn's query.
+class FollowUpChip extends StatelessWidget {
+  final String question;
+  final VoidCallback onTap;
+  const FollowUpChip({super.key, required this.question, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
+        decoration: BoxDecoration(
+          color: AppColors.teal.withValues(alpha: 0.07),
+          borderRadius: BorderRadius.circular(999),
+          border: Border.all(color: AppColors.teal.withValues(alpha: 0.35)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(PhosphorIconsRegular.arrowBendUpLeft, size: 15, color: AppColors.tealD),
+            const SizedBox(width: 7),
+            Flexible(
+              child: Text(
+                question,
+                style: TextStyle(fontSize: 13.2, fontWeight: FontWeight.w500, color: t.ink),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
