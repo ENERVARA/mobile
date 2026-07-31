@@ -39,11 +39,12 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
     });
   }
 
-  /// Bare-minimum H/W modal whenever onboarding loaded but basics unanswered;
-  /// otherwise the once-per-session speciality picker.
-  void _maybeShowIntro(OnboardingUiState onboarding) {
+  /// Bare-minimum H/W modal only during initial onboarding (when user hasn't
+  /// set height/weight yet); otherwise the once-per-session speciality picker.
+  void _maybeShowIntro(OnboardingUiState onboarding, bool userHasBasics) {
     if (!onboarding.isLoaded || _basicsShown) return;
-    if (!onboarding.me.hasBasics) {
+    // Only show basics modal if user hasn't already filled in height/weight
+    if (!userHasBasics) {
       _basicsShown = true;
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) showBasicOnboardingSheet(context);
@@ -63,7 +64,9 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
     final t = context.tokens;
     final user = ref.watch(authProvider).user;
     final onboarding = ref.watch(onboardingProvider);
-    _maybeShowIntro(onboarding);
+    // Only show basics modal if user hasn't set height/weight (permanent check)
+    final userHasBasics = (user?.heightCm ?? 0) > 0 && (user?.weightKg ?? 0) > 0;
+    _maybeShowIntro(onboarding, userHasBasics);
 
     final name = user?.firstName.trim() ?? '';
     final firstName = name.isNotEmpty ? name : 'there';

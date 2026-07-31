@@ -6,6 +6,7 @@ import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/context_ext.dart';
 import '../../../../core/ui/app_messenger.dart';
 import '../../../../core/utils/formatters.dart';
+import '../../../../state/auth_provider.dart';
 import '../../../../state/onboarding_provider.dart';
 import '../../../widgets/app_button.dart';
 
@@ -88,9 +89,18 @@ class _BasicOnboardingSheetState extends ConsumerState<_BasicOnboardingSheet> {
     }
     setState(() => _submitting = true);
     try {
-      await ref.read(onboardingProvider.notifier).submit([
-        for (final q in _questions) {'fieldName': q.fieldName, 'answer': _values[q.fieldName]},
-      ]);
+      final h = _values['height_cm']?.toDouble();
+      final w = _values['weight_kg']?.toDouble();
+      if (h == null || w == null) {
+        AppMessenger.error('Please enter valid height and weight');
+        return;
+      }
+      // Canonical current H/W → users (single source of truth). Do NOT write
+      // these to onboardingresponses (that would recreate two sources).
+      await ref.read(authProvider.notifier).updateMe({'heightCm': h, 'weightKg': w});
+      // Refresh onboarding-derived state so hasBasics (now computed from users)
+      // flips true and the dashboard won't re-prompt.
+      await ref.read(onboardingProvider.notifier).load();
       if (!mounted) return;
       AppMessenger.success('Profile basics saved');
       Navigator.of(context).pop();

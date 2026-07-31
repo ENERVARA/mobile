@@ -24,6 +24,7 @@ class AppConfig {
   );
 
   static const emergencyNumber = '112';
+  static const ambulanceNumber = '102';
 
   // Upload constraints (mirrors src/constants/config.ts).
   static const maxFileSizeBytes = 10 * 1024 * 1024; // 10 MB

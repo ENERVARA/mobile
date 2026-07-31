@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../../core/config/app_config.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/context_ext.dart';
 import '../../../core/ui/app_messenger.dart';
@@ -14,7 +15,8 @@ class EmergencyPage extends ConsumerWidget {
   const EmergencyPage({super.key});
 
   static const _contacts = [
-    (label: 'Emergency Services', number: '911', icon: PhosphorIconsDuotone.ambulance, color: AppColors.danger),
+    (label: 'Emergency Services', number: AppConfig.emergencyNumber, icon: PhosphorIconsDuotone.ambulance, color: AppColors.danger),
+    (label: 'Ambulance', number: AppConfig.ambulanceNumber, icon: PhosphorIconsDuotone.ambulance, color: AppColors.danger),
     (label: 'Poison Control', number: '1-800-222-1222', icon: PhosphorIconsDuotone.warning, color: AppColors.amber),
     (label: 'Mental Health Crisis', number: '988', icon: PhosphorIconsDuotone.phone, color: AppColors.lav),
   ];
@@ -25,7 +27,7 @@ class EmergencyPage extends ConsumerWidget {
       icon: PhosphorIconsDuotone.heart,
       color: AppColors.danger,
       steps: [
-        'Call 911 immediately',
+        'Call emergency services (112) immediately',
         'Have the person sit or lie down',
         'Loosen tight clothing',
         'Give aspirin if not allergic and person is conscious',
@@ -50,7 +52,7 @@ class EmergencyPage extends ConsumerWidget {
         'Apply firm pressure with clean cloth',
         'Do not remove cloth — add more if needed',
         'Elevate the injured area above heart',
-        'Call 911 for deep or arterial wounds',
+        'Call emergency services (112) for deep or arterial wounds',
       ],
     ),
   ];
@@ -69,7 +71,7 @@ class EmergencyPage extends ConsumerWidget {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Call 911?'),
+        title: Text('Call ${AppConfig.emergencyNumber}?'),
         content: const Text(
           'You are about to call emergency services. Only continue if this is a real '
           'emergency — false calls can delay help to people in real need.',
@@ -83,7 +85,7 @@ class EmergencyPage extends ConsumerWidget {
         ],
       ),
     );
-    if (ok == true) await _dial('911');
+    if (ok == true) await _dial(AppConfig.emergencyNumber);
   }
 
   @override
