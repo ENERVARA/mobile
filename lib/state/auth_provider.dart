@@ -104,14 +104,18 @@ class AuthController extends StateNotifier<AuthState> {
   /// Google sign-in/up (same endpoint handles both — the backend creates the
   /// account on first sign-in). Returns silently if the user cancels the
   /// native account picker; that's not an error worth surfacing.
-  Future<void> googleSignIn() async {
+  /// Returns true only when a session was actually established. False means
+  /// the user dismissed the account picker — callers must stay silent in that
+  /// case rather than reporting a successful sign-in.
+  Future<bool> googleSignIn() async {
     state = state.copyWith(isLoading: true, clearError: true);
     try {
       final idToken = await GoogleAuthService.instance.signInAndGetIdToken();
-      if (idToken == null) return; // user canceled the picker
+      if (idToken == null) return false; // user canceled the picker
       final result = await _service.google(idToken);
       await TokenStore.instance.save(result.token);
       await _hydrateUser();
+      return true;
     } catch (e) {
       state = state.copyWith(error: _msg(e));
       rethrow;

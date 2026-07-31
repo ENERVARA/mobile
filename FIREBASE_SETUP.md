@@ -73,6 +73,43 @@ capabilities above.
 - Tapping any push navigates in-app if the notification's custom data has a
   `route` key (e.g. `route` → `/reports`) — set that field when composing in
   the [admin portal](../admin-portal).
-- To resend the debug SHA-1 process for a **release** keystore later, run
-  `cd android && ./gradlew signingReport` against that keystore and register
-  it the same way (`firebase apps:android:sha:create`).
+## Google Sign-In on release builds — SHA-1 registration
+
+Google sign-in only works for a build whose **signing certificate SHA-1** is
+registered on the Firebase Android app. There are up to **three** distinct
+certificates, and needing one does not cover the others:
+
+| Build | Signed with | SHA-1 |
+| --- | --- | --- |
+| `flutter run` / debug | `~/.android/debug.keystore` | `BE:0E:2D:8A:84:B3:FD:83:E1:09:46:B3:00:2C:41:90:5B:55:2A:28` ✅ registered |
+| Local release APK / AAB | `upload-keystore.jks` | `89:07:35:B3:BF:AD:DE:F7:C5:25:15:07:C9:9A:A9:E0:72:21:2F:7A` ✅ registered |
+| **Installed from Play Store** | **Play App Signing key** (Google re-signs the AAB — this is NOT the upload key) | ⚠️ **must be registered separately** |
+
+That third row is the one that bites: uploading an AAB means Google strips your
+upload signature and re-signs with its own app signing key, so a tester who
+installs from Play runs a binary signed by a certificate neither of the first
+two rows covers. Email/password login still works (it never touches Firebase),
+which makes it look like only Google sign-in is broken.
+
+To register it:
+
+1. Play Console → your app → **Test and release** → **Setup** → **App integrity**
+2. **App signing key certificate** → copy the **SHA-1 certificate fingerprint**
+3. Register it:
+   ```bash
+   firebase apps:android:sha:create 1:585113598278:android:3b811048248f103e964d47 <SHA-1> --project health-81575
+   ```
+4. Re-download the config so it picks up the new OAuth client:
+   ```bash
+   firebase apps:sdkconfig ANDROID 1:585113598278:android:3b811048248f103e964d47 --project health-81575
+   ```
+   (write the JSON body to `android/app/google-services.json`)
+
+Propagation is usually seconds, occasionally a few minutes. **No app rebuild or
+re-upload is needed** for an already-published build — the check is server-side,
+so the testers' existing install starts working once the SHA is registered.
+
+List what's currently registered with:
+```bash
+firebase apps:android:sha:list 1:585113598278:android:3b811048248f103e964d47 --project health-81575
+```

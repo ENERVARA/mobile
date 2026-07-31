@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/auth/google_auth_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/ui/app_messenger.dart';
 import '../../../core/utils/validators.dart';
@@ -46,13 +47,18 @@ class _LoginPageState extends ConsumerState<LoginPage> {
 
   Future<void> _google() async {
     try {
-      await ref.read(authProvider.notifier).googleSignIn();
-      if (!mounted) return;
+      final signedIn = await ref.read(authProvider.notifier).googleSignIn();
+      // Canceled picker — say nothing. Claiming success here would leave the
+      // user staring at "Welcome back" on a screen that never navigates.
+      if (!mounted || !signedIn) return;
       AppMessenger.success('Welcome back!');
       // The router redirects once authenticated (new users continue to
       // onboarding; returning users go straight to /dashboard).
+    } on GoogleAuthFailure catch (e) {
+      // Never reaches the API client, so nothing else would surface it.
+      AppMessenger.error(e.message);
     } catch (_) {
-      // The API client already surfaced the error toast.
+      // Backend rejection — the API client already surfaced the error toast.
     }
   }
 

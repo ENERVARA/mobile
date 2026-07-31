@@ -14,6 +14,22 @@
       },
       "oauth_client": [
         {
+          "client_id": "585113598278-2so6j7cfi2s38icbf26iarfotvnem92t.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.enervara.enervara",
+            "certificate_hash": "890735b3bfaddef7c5251507c99aa9e072212f7a"
+          }
+        },
+        {
+          "client_id": "585113598278-d2cud23e510ftsqq70qq7m9ll46n00qc.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.enervara.enervara",
+            "certificate_hash": "be0e2d8a84b3fd83e10946b3002c41905b552a28"
+          }
+        },
+        {
           "client_id": "585113598278-uvn4vmcreqvtrtlina9v27i73lsf0c2r.apps.googleusercontent.com",
           "client_type": 3
         }
@@ -29,6 +45,13 @@
             {
               "client_id": "585113598278-uvn4vmcreqvtrtlina9v27i73lsf0c2r.apps.googleusercontent.com",
               "client_type": 3
+            },
+            {
+              "client_id": "585113598278-origfmhbm0kqvegfmkgotmvhlsfapivn.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.enervara.enervara"
+              }
             }
           ]
         }

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
+import '../../../core/auth/google_auth_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/context_ext.dart';
 import '../../../core/ui/app_messenger.dart';
@@ -66,12 +67,16 @@ class _SignupPageState extends ConsumerState<SignupPage> {
 
   Future<void> _google() async {
     try {
-      await ref.read(authProvider.notifier).googleSignIn();
-      if (!mounted) return;
+      final signedIn = await ref.read(authProvider.notifier).googleSignIn();
+      // Canceled picker — say nothing rather than claiming an account was made.
+      if (!mounted || !signedIn) return;
       AppMessenger.success('Welcome to Enervara!');
       // The router redirects to onboarding once authenticated.
+    } on GoogleAuthFailure catch (e) {
+      // Never reaches the API client, so nothing else would surface it.
+      AppMessenger.error(e.message);
     } catch (_) {
-      // The API client already surfaced the error toast.
+      // Backend rejection — the API client already surfaced the error toast.
     }
   }
 
