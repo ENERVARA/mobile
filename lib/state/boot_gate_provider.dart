@@ -18,7 +18,9 @@ final bootGateProvider =
 class BootGateController extends StateNotifier<bool> {
   BootGateController() : super(false) {
     _timer = Timer(kBootLoopDuration, () {
-      if (mounted) state = true;
+      // In release mode, mounted check was unreliable. Simply update state
+      // unless the timer was cancelled (which disposes the controller).
+      state = true;
     });
   }
 

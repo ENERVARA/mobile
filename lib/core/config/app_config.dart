@@ -14,6 +14,15 @@ class AppConfig {
     defaultValue: 'https://enervara-backend.up.railway.app/api',
   );
 
+  /// The deployed web app's origin — used only to build the public SOAP
+  /// share link (`<webAppUrl>/share/soap/:token>`), which is rendered by the
+  /// web app's `SoapSharePage`, not by this app. Staging: `enervara-app`
+  /// (hyphen). Prod: `app.enervara.com`.
+  static const webAppUrl = String.fromEnvironment(
+    'WEB_APP_URL',
+    defaultValue: 'https://enervara-app.up.railway.app',
+  );
+
   static const emergencyNumber = '112';
 
   // Upload constraints (mirrors src/constants/config.ts).
@@ -24,5 +33,11 @@ class AppConfig {
     'image/png',
     'application/dicom',
   ];
-  static const acceptedExtensions = <String>['pdf', 'jpg', 'jpeg', 'png', 'dcm'];
+  static const acceptedExtensions = <String>[
+    'pdf',
+    'jpg',
+    'jpeg',
+    'png',
+    'dcm',
+  ];
 }

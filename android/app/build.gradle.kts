@@ -1,3 +1,6 @@
+import java.io.FileInputStream
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("kotlin-android")
@@ -6,6 +9,16 @@ plugins {
     // Reads google-services.json; only actually applied below once that file exists,
     // so the build doesn't break before Firebase is configured.
     id("com.google.gms.google-services") apply false
+}
+
+// Release signing — populated from android/key.properties (gitignored, never
+// commit it or the .jks it points at). Falls back to debug signing when the
+// file is absent so a fresh checkout without the keystore still builds.
+val keystorePropertiesFile = rootProject.file("key.properties")
+val keystoreProperties = Properties()
+val hasReleaseSigning = keystorePropertiesFile.exists()
+if (hasReleaseSigning) {
+    keystoreProperties.load(FileInputStream(keystorePropertiesFile))
 }
 
 // Activates Firebase's native Android config the moment google-services.json is
@@ -41,11 +54,27 @@ android {
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        if (hasReleaseSigning) {
+            create("release") {
+                keyAlias = keystoreProperties["keyAlias"] as String
+                keyPassword = keystoreProperties["keyPassword"] as String
+                storeFile = file(keystoreProperties["storeFile"] as String)
+                storePassword = keystoreProperties["storePassword"] as String
+            }
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            // Real upload-key signing once android/key.properties exists;
+            // otherwise falls back to the debug keys so `flutter run
+            // --release` still works on a machine without the keystore.
+            signingConfig = if (hasReleaseSigning) {
+                signingConfigs.getByName("release")
+            } else {
+                signingConfigs.getByName("debug")
+            }
         }
     }
 }

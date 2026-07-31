@@ -13,8 +13,10 @@ import '../../../state/chat_provider.dart';
 import '../../../state/nova_ui_provider.dart';
 import '../../widgets/logo.dart';
 import '../../widgets/nova_orb.dart';
+import 'widgets/doctor_summary_cta.dart';
 import 'widgets/message_list.dart';
 import 'widgets/nova_composer.dart';
+import 'widgets/soap_note_panel.dart';
 
 /// Fullscreen Nova chat — redesigned white background with teal Nova bubbles,
 /// cyan user bubbles and the gradient dot-sphere orb. Mirrors `ChatPanel.tsx`.
@@ -58,20 +60,35 @@ class _NovaChatPageState extends ConsumerState<NovaChatPage> {
     final userInitial = user?.initial ?? 'U';
 
     final showEmpty = chat.messages.isEmpty && !chat.isStreaming;
+    final activeId = chat.activeConversationId;
+    final showDoctorSummary =
+        activeId != null && chat.doctorSummaryReady[activeId] == true;
 
     return Scaffold(
       backgroundColor: t.card,
       body: SafeArea(
-        child: Column(
+        child: Stack(
           children: [
-            _header(context, slug),
-            Divider(height: 1, thickness: 1, color: t.line),
-            Expanded(
-              child: showEmpty
-                  ? _EmptyState(firstName: user?.firstName)
-                  : MessageList(userInitial: userInitial),
+            Column(
+              children: [
+                _header(context, slug),
+                Divider(height: 1, thickness: 1, color: t.line),
+                Expanded(
+                  child: showEmpty
+                      ? _EmptyState(firstName: user?.firstName)
+                      : MessageList(userInitial: userInitial),
+                ),
+                if (showDoctorSummary)
+                  DoctorSummaryCta(
+                    onTap: () => ref.read(chatProvider.notifier).generateSoap(),
+                    loading: chat.soap.status == SoapStatus.loading,
+                  ),
+                const NovaComposer(),
+              ],
             ),
-            const NovaComposer(),
+            // Doctor-summary SOAP note — full-takeover overlay of the chat
+            // column, never a chat message.
+            if (chat.soap.status != SoapStatus.idle) const SoapNotePanel(),
           ],
         ),
       ),
@@ -93,7 +110,10 @@ class _NovaChatPageState extends ConsumerState<NovaChatPage> {
             width: 32,
             height: 32,
             alignment: Alignment.center,
-            decoration: const BoxDecoration(color: AppColors.teal, shape: BoxShape.circle),
+            decoration: const BoxDecoration(
+              color: AppColors.teal,
+              shape: BoxShape.circle,
+            ),
             child: const Logo(size: 19, white: true),
           ),
           const SizedBox(width: 10),
@@ -104,13 +124,21 @@ class _NovaChatPageState extends ConsumerState<NovaChatPage> {
               children: [
                 Text(
                   'Nova',
-                  style: TextStyle(fontSize: 15.2, fontWeight: FontWeight.w700, color: t.ink),
+                  style: TextStyle(
+                    fontSize: 15.2,
+                    fontWeight: FontWeight.w700,
+                    color: t.ink,
+                  ),
                 ),
                 Text(
                   specialityName(slug),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w500, color: t.ink3),
+                  style: TextStyle(
+                    fontSize: 11.5,
+                    fontWeight: FontWeight.w500,
+                    color: t.ink3,
+                  ),
                 ),
               ],
             ),
@@ -118,7 +146,11 @@ class _NovaChatPageState extends ConsumerState<NovaChatPage> {
           const SizedBox(width: 6),
           IconButton(
             onPressed: () => _showHistorySheet(context),
-            icon: Icon(PhosphorIconsRegular.clockCounterClockwise, size: 20, color: t.ink2),
+            icon: Icon(
+              PhosphorIconsRegular.clockCounterClockwise,
+              size: 20,
+              color: t.ink2,
+            ),
             splashRadius: 22,
             tooltip: 'Previous conversations',
           ),
@@ -133,11 +165,19 @@ class _NovaChatPageState extends ConsumerState<NovaChatPage> {
               child: const Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(PhosphorIconsRegular.plus, size: 14, color: Colors.white),
+                  Icon(
+                    PhosphorIconsRegular.plus,
+                    size: 14,
+                    color: Colors.white,
+                  ),
                   SizedBox(width: 6),
                   Text(
                     'New chat',
-                    style: TextStyle(fontSize: 12.8, fontWeight: FontWeight.w600, color: Colors.white),
+                    style: TextStyle(
+                      fontSize: 12.8,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white,
+                    ),
                   ),
                 ],
               ),
@@ -176,7 +216,9 @@ class _HistorySheet extends ConsumerWidget {
       });
 
     return Container(
-      constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(context).height * 0.75),
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.sizeOf(context).height * 0.75,
+      ),
       decoration: BoxDecoration(
         color: t.card,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(22)),
@@ -188,7 +230,10 @@ class _HistorySheet extends ConsumerWidget {
           Container(
             width: 40,
             height: 4,
-            decoration: BoxDecoration(color: t.line, borderRadius: BorderRadius.circular(999)),
+            decoration: BoxDecoration(
+              color: t.line,
+              borderRadius: BorderRadius.circular(999),
+            ),
           ),
           const SizedBox(height: 16),
           Padding(
@@ -198,7 +243,11 @@ class _HistorySheet extends ConsumerWidget {
                 Expanded(
                   child: Text(
                     'Previous conversations',
-                    style: TextStyle(fontSize: 16.5, fontWeight: FontWeight.w700, color: t.ink),
+                    style: TextStyle(
+                      fontSize: 16.5,
+                      fontWeight: FontWeight.w700,
+                      color: t.ink,
+                    ),
                   ),
                 ),
                 IconButton(
@@ -211,7 +260,10 @@ class _HistorySheet extends ConsumerWidget {
           Flexible(
             child: conversations.isEmpty
                 ? Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 40, horizontal: 20),
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 40,
+                      horizontal: 20,
+                    ),
                     child: Text(
                       'No previous conversations yet.',
                       style: TextStyle(fontSize: 13.5, color: t.ink3),
@@ -230,15 +282,21 @@ class _HistorySheet extends ConsumerWidget {
                         child: GestureDetector(
                           onTap: () {
                             Navigator.of(context).pop();
-                            ref.read(chatProvider.notifier).openConversation(c.id);
+                            ref
+                                .read(chatProvider.notifier)
+                                .openConversation(c.id);
                           },
                           child: Container(
                             padding: const EdgeInsets.all(14),
                             decoration: BoxDecoration(
-                              color: active ? AppColors.teal.withValues(alpha: 0.08) : t.soft,
+                              color: active
+                                  ? AppColors.teal.withValues(alpha: 0.08)
+                                  : t.soft,
                               borderRadius: BorderRadius.circular(12),
                               border: Border.all(
-                                color: active ? AppColors.teal.withValues(alpha: 0.4) : t.line,
+                                color: active
+                                    ? AppColors.teal.withValues(alpha: 0.4)
+                                    : t.line,
                               ),
                             ),
                             child: Row(
@@ -251,7 +309,8 @@ class _HistorySheet extends ConsumerWidget {
                                 const SizedBox(width: 11),
                                 Expanded(
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
                                       Text(
@@ -268,13 +327,20 @@ class _HistorySheet extends ConsumerWidget {
                                         const SizedBox(height: 2),
                                         Text(
                                           Formatters.timeAgo(when),
-                                          style: TextStyle(fontSize: 11.5, color: t.ink3),
+                                          style: TextStyle(
+                                            fontSize: 11.5,
+                                            color: t.ink3,
+                                          ),
                                         ),
                                       ],
                                     ],
                                   ),
                                 ),
-                                Icon(PhosphorIconsRegular.caretRight, size: 15, color: t.ink3),
+                                Icon(
+                                  PhosphorIconsRegular.caretRight,
+                                  size: 15,
+                                  color: t.ink3,
+                                ),
                               ],
                             ),
                           ),
@@ -320,7 +386,8 @@ class _EmptyState extends ConsumerWidget {
                 for (final qa in kNovaDefaultQuick)
                   _QuickChip(
                     action: qa,
-                    onTap: () => ref.read(novaUiProvider.notifier).send(qa.text),
+                    onTap: () =>
+                        ref.read(novaUiProvider.notifier).send(qa.text),
                   ),
               ],
             ),
@@ -355,7 +422,11 @@ class _QuickChip extends StatelessWidget {
             const SizedBox(width: 7),
             Text(
               action.label,
-              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: t.ink),
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+                color: t.ink,
+              ),
             ),
           ],
         ),

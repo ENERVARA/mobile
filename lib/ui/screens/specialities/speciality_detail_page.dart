@@ -170,7 +170,9 @@ class _Hero extends StatelessWidget {
               right: 0,
               width: MediaQuery.sizeOf(context).width * 0.5,
               child: Opacity(
-                opacity: 0.5,
+                // Coming-soon specialities get their hero image faded an
+                // extra 50% (0.5 → 0.25), matching the grid card treatment.
+                opacity: soon ? 0.25 : 0.5,
                 child: ShaderMask(
                   shaderCallback: (rect) => const LinearGradient(
                     begin: Alignment.centerLeft,

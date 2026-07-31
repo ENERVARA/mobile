@@ -3,13 +3,26 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/api/sse_client.dart';
 import '../data/models/chat.dart';
+import '../data/models/soap.dart';
 import '../data/services/chat_service.dart';
+import '../data/services/soap_service.dart';
 
 final chatServiceProvider = Provider((ref) => const ChatService());
+final soapServiceProvider = Provider((ref) => const SoapService());
 
 final chatProvider = StateNotifierProvider<ChatController, ChatState>(
   (ref) => ChatController(ref),
 );
+
+/// Doctor-summary / SOAP-note presentation state (one at a time, active conv).
+enum SoapStatus { idle, loading, ready, error }
+
+class SoapUiState {
+  final SoapStatus status;
+  final SoapNote? note;
+  final String? error;
+  const SoapUiState({this.status = SoapStatus.idle, this.note, this.error});
+}
 
 class ChatState {
   final List<ChatConversation> conversations;
@@ -25,6 +38,12 @@ class ChatState {
   final bool isSendingImage;
   final int? imageUploadProgress;
   final String? streamError;
+  // Sticky per-conversation flag: once the backend sets show_doctor_summary
+  // on any turn, the "Show this to your doctor" CTA stays available for the
+  // rest of that conversation. Keyed by conversation id.
+  final Map<String, bool> doctorSummaryReady;
+  // SOAP-note generation/presentation for the active conversation.
+  final SoapUiState soap;
 
   const ChatState({
     this.conversations = const [],
@@ -40,6 +59,8 @@ class ChatState {
     this.isSendingImage = false,
     this.imageUploadProgress,
     this.streamError,
+    this.doctorSummaryReady = const {},
+    this.soap = const SoapUiState(),
   });
 
   ChatState copyWith({
@@ -59,6 +80,8 @@ class ChatState {
     bool clearImageProgress = false,
     String? streamError,
     bool clearStreamError = false,
+    Map<String, bool>? doctorSummaryReady,
+    SoapUiState? soap,
   }) {
     return ChatState(
       conversations: conversations ?? this.conversations,
@@ -78,6 +101,8 @@ class ChatState {
           ? null
           : (imageUploadProgress ?? this.imageUploadProgress),
       streamError: clearStreamError ? null : (streamError ?? this.streamError),
+      doctorSummaryReady: doctorSummaryReady ?? this.doctorSummaryReady,
+      soap: soap ?? this.soap,
     );
   }
 }
@@ -87,6 +112,7 @@ class ChatController extends StateNotifier<ChatState> {
 
   final Ref _ref;
   ChatService get _service => _ref.read(chatServiceProvider);
+  SoapService get _soapService => _ref.read(soapServiceProvider);
   CancelToken? _cancelToken;
 
   /// Set when the user hits Stop, so we keep the partial reply on screen
@@ -122,6 +148,7 @@ class ChatController extends StateNotifier<ChatState> {
       streamingContent: '',
       streamingBlocks: const [],
       clearStreamError: true,
+      soap: const SoapUiState(),
     );
     return created;
   }
@@ -134,6 +161,7 @@ class ChatController extends StateNotifier<ChatState> {
       streamingContent: '',
       streamingBlocks: const [],
       clearStreamError: true,
+      soap: const SoapUiState(),
     );
     try {
       final res = await _service.getConversation(id);
@@ -197,6 +225,15 @@ class ChatController extends StateNotifier<ChatState> {
         onDone: (payload) {
           final fq = payload['followup_questions'];
           if (fq is List) followups = fq.map((e) => e.toString()).toList();
+          // Sticky: once true for this conversation, the doctor-summary CTA stays.
+          if (payload['show_doctor_summary'] == true) {
+            state = state.copyWith(
+              doctorSummaryReady: {
+                ...state.doctorSummaryReady,
+                conversationId: true,
+              },
+            );
+          }
         },
         onError: (message) {
           state = state.copyWith(streamError: message);
@@ -373,7 +410,43 @@ class ChatController extends StateNotifier<ChatState> {
       streamingBlocks: const [],
       isStreaming: false,
       clearStreamError: true,
+      soap: const SoapUiState(),
     );
+  }
+
+  /// Generate (always fresh) + present a SOAP note for the active conversation.
+  Future<void> generateSoap() async {
+    final conversationId = state.activeConversationId;
+    if (conversationId == null) return;
+    // Always a fresh request so the note reflects the latest conversation
+    // context — re-tapping after more chat regenerates rather than caches.
+    state = state.copyWith(soap: const SoapUiState(status: SoapStatus.loading));
+    try {
+      final note = await _soapService.generate(conversationId);
+      // Guard against a conversation switch while the request was in flight.
+      if (state.activeConversationId != conversationId) return;
+      state = state.copyWith(
+        soap: SoapUiState(status: SoapStatus.ready, note: note),
+      );
+    } catch (e) {
+      if (state.activeConversationId != conversationId) return;
+      state = state.copyWith(
+        soap: SoapUiState(status: SoapStatus.error, error: _errorMessage(e)),
+      );
+    }
+  }
+
+  /// Close the SOAP note overlay and return to the chat.
+  void closeSoap() => state = state.copyWith(soap: const SoapUiState());
+
+  static String _errorMessage(Object e) {
+    if (e is DioException) {
+      final data = e.response?.data;
+      if (data is Map && data['message'] is String) {
+        return data['message'] as String;
+      }
+    }
+    return 'Could not prepare the summary. Please try again.';
   }
 }
 

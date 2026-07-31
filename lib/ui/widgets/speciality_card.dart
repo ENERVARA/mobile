@@ -7,8 +7,9 @@ import '../../data/constants/speciality_images.dart';
 import '../../data/models/speciality.dart';
 
 /// Speciality grid card — ported from `src/components/shared/SpecialityCard.tsx`.
-/// The hero image bleeds off the right edge at 50% opacity behind the copy;
-/// enabled specialities show "Available", the rest "Coming soon".
+/// The hero image bleeds off the right edge at 50% opacity behind the copy
+/// (25% for "Coming soon" cards — faded an extra 50%); enabled specialities
+/// show "Available", the rest "Coming soon".
 class SpecialityCard extends StatelessWidget {
   final Speciality speciality;
   const SpecialityCard({super.key, required this.speciality});
@@ -40,7 +41,9 @@ class SpecialityCard extends StatelessWidget {
                   right: -38, // scaled down with the image width below
                   width: MediaQuery.sizeOf(context).width * 0.465, // 0.62 - 25%
                   child: Opacity(
-                    opacity: 0.5,
+                    // Coming-soon cards get their hero image faded an extra
+                    // 50% (0.5 → 0.25) on top of the card-level dimming below.
+                    opacity: soon ? 0.25 : 0.5,
                     child: Image.asset(
                       image,
                       fit: BoxFit.cover,

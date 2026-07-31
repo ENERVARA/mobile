@@ -283,13 +283,10 @@ const List<Speciality> kSpecialities = [
 ];
 
 /// Only these specialities are fully built out for the early-access rollout.
-const Set<String> kEnabledSpecialitySlugs = {
-  'general-medicine',
-  'gastroenterology',
-  'cardiology',
-  'dermatology',
-  'ent',
-};
+/// Mobile currently only ships General Medicine — every other speciality
+/// (including ones the dashboard has already enabled) shows as "Coming soon"
+/// here until they're verified on this platform.
+const Set<String> kEnabledSpecialitySlugs = {'general-medicine'};
 
 const String kDefaultSpecialitySlug = 'general-medicine';
 

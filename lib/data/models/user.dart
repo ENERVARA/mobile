@@ -16,6 +16,10 @@ class User {
   final String? provider; // email | google
   final bool onboardingCompleted;
   final String? createdAt;
+  // Basics captured on the post-signup onboarding modal — used for the SOAP
+  // note's patient-demographics card (age/BMI), same source as `/auth/me`.
+  final double? heightCm;
+  final double? weightKg;
 
   const User({
     required this.id,
@@ -34,6 +38,8 @@ class User {
     this.provider,
     this.onboardingCompleted = false,
     this.createdAt,
+    this.heightCm,
+    this.weightKg,
   });
 
   String get fullName => '$firstName $lastName'.trim();
@@ -63,6 +69,8 @@ class User {
       provider: json['provider'] as String?,
       onboardingCompleted: json['onboardingCompleted'] == true,
       createdAt: json['createdAt'] as String?,
+      heightCm: (json['heightCm'] as num?)?.toDouble(),
+      weightKg: (json['weightKg'] as num?)?.toDouble(),
     );
   }
 
@@ -92,6 +100,8 @@ class User {
       provider: provider,
       onboardingCompleted: onboardingCompleted ?? this.onboardingCompleted,
       createdAt: createdAt,
+      heightCm: heightCm,
+      weightKg: weightKg,
     );
   }
 }
