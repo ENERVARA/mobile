@@ -100,14 +100,18 @@ class ApiClient {
   void _handleUnauthorized(dynamic data) {
     final code = (data is Map) ? data['code'] as String? : null;
     if (code == 'ACCOUNT_DELETION_PENDING') {
-      AppMessenger.error('This account is scheduled for deletion. Log in again to cancel.');
+      AppMessenger.error(
+        'This account is scheduled for deletion. Log in again to cancel.',
+      );
     }
     TokenStore.instance.clear();
     onUnauthorized?.call();
   }
 
   static String? _messageOf(dynamic data) {
-    if (data is Map && data['message'] is String) return data['message'] as String;
+    if (data is Map && data['message'] is String) {
+      return data['message'] as String;
+    }
     return null;
   }
 }

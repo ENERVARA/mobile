@@ -14,11 +14,27 @@
       },
       "oauth_client": [
         {
+          "client_id": "585113598278-22cpc5uiqdt9d6kbuti737bmaevkpnj1.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.enervara.enervara",
+            "certificate_hash": "9f60b8e62bdf28c0e56b2968db205947a341c61f"
+          }
+        },
+        {
           "client_id": "585113598278-2so6j7cfi2s38icbf26iarfotvnem92t.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {
             "package_name": "com.enervara.enervara",
             "certificate_hash": "890735b3bfaddef7c5251507c99aa9e072212f7a"
+          }
+        },
+        {
+          "client_id": "585113598278-7puapfu7u2fdlethsgsm112bfckn3hlc.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.enervara.enervara",
+            "certificate_hash": "5943667ad06561d90ae0b272a499c1ec9c37b08c"
           }
         },
         {
