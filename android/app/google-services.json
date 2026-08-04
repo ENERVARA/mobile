@@ -14,14 +14,6 @@
       },
       "oauth_client": [
         {
-          "client_id": "585113598278-22cpc5uiqdt9d6kbuti737bmaevkpnj1.apps.googleusercontent.com",
-          "client_type": 1,
-          "android_info": {
-            "package_name": "com.enervara.enervara",
-            "certificate_hash": "9f60b8e62bdf28c0e56b2968db205947a341c61f"
-          }
-        },
-        {
           "client_id": "585113598278-2so6j7cfi2s38icbf26iarfotvnem92t.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {

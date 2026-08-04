@@ -21,11 +21,8 @@ if (hasReleaseSigning) {
     keystoreProperties.load(FileInputStream(keystorePropertiesFile))
 }
 
-// Activates Firebase's native Android config the moment google-services.json is
-// dropped into this folder (see mobile_app/FIREBASE_SETUP.md) — no other change needed.
-if (file("google-services.json").exists()) {
-    apply(plugin = "com.google.gms.google-services")
-}
+// Activates Firebase's native Android config unconditionally like SplitPlan
+apply(plugin = "com.google.gms.google-services")
 
 android {
     namespace = "com.enervara.enervara"
@@ -52,6 +49,7 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+        multiDexEnabled = true
     }
 
     signingConfigs {
@@ -67,6 +65,10 @@ android {
 
     buildTypes {
         release {
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
             // Real upload-key signing once android/key.properties exists;
             // otherwise falls back to the debug keys so `flutter run
             // --release` still works on a machine without the keystore.

@@ -65,14 +65,25 @@ class ApiClient {
           // Toasting happens here only, so a failed request is never shown
           // twice. Silent on purpose for:
           // - cancellations (the request was intentionally aborted),
-          // - 401s (already handled above — session wipe/redirect, no toast
-          //   unless it's the account-deletion-pending case),
+          // - 401s on authenticated routes (already handled above — session
+          //   wipe/redirect, no toast unless it's the account-deletion-pending
+          //   case),
           // - responseless network/timeout errors (no backend message to
           //   show, and these fire routinely on a cold app launch before
           //   the network/backend is ready — mirrors the dashboard, which
           //   stays silent on connectivity errors too).
+          //
+          // Pre-session paths (login, google, signup etc.) ARE toasted on 401
+          // because those are bad-credentials errors, not session invalidations.
           final status = err.response?.statusCode;
-          if (err.type != DioExceptionType.cancel && status != null && status != 401) {
+          final errPath = err.requestOptions.path;
+          final isPreSessionErr = _preSessionPaths.any(errPath.contains);
+          final isHandledLoginErr =
+              errPath.contains('/auth/login') && (status == 400 || status == 401 || status == 404);
+          if (err.type != DioExceptionType.cancel &&
+              status != null &&
+              !isHandledLoginErr &&
+              (status != 401 || isPreSessionErr)) {
             final msg = _messageOf(err.response?.data) ?? 'Something went wrong';
             AppMessenger.error(msg);
           }

@@ -11,14 +11,34 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   try {
-    await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+    // Run initializations with timeout to avoid hanging indefinitely on cold start
+    await Future.wait([
+      Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform),
+    ]).timeout(const Duration(seconds: 10));
+
     FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
     await PushNotificationService.instance.init();
-  } catch (e) {
-    // firebase_options.dart still has placeholder keys until FIREBASE_SETUP.md
-    // is completed — push notifications simply stay off, nothing else breaks.
-    debugPrint('Firebase/push-notifications unavailable: $e');
-  }
 
-  runApp(const ProviderScope(child: EnervaraApp()));
+    runApp(const ProviderScope(child: EnervaraApp()));
+  } catch (e, stacktrace) {
+    debugPrint("ENERVARA ERROR: $e");
+    debugPrint(stacktrace.toString());
+
+    // Failsafe: Launch an error screen if initialization completely fails
+    runApp(
+      MaterialApp(
+        home: Scaffold(
+          body: Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24.0),
+              child: Text(
+                "App failed to start. Please check your internet connection and try again.\n\nError: $e",
+                textAlign: TextAlign.center,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }

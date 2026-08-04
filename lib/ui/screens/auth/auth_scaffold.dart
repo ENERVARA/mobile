@@ -201,6 +201,7 @@ class AuthField extends StatefulWidget {
   final void Function(String)? onChanged;
   final void Function(String)? onSubmitted;
   final List<String>? autofillHints;
+  final String? errorText;
 
   const AuthField({
     super.key,
@@ -214,6 +215,7 @@ class AuthField extends StatefulWidget {
     this.onChanged,
     this.onSubmitted,
     this.autofillHints,
+    this.errorText,
   });
 
   @override
@@ -279,6 +281,7 @@ class _AuthFieldState extends State<AuthField> {
             errorBorder: _border(AppColors.danger, 1),
             focusedErrorBorder: _border(AppColors.danger, 1.6),
             errorStyle: const TextStyle(fontSize: 12, color: AppColors.danger),
+            errorText: widget.errorText,
           ),
         ),
       ],
@@ -287,79 +290,6 @@ class _AuthFieldState extends State<AuthField> {
 }
 
 /// The "─ or ─" divider between the primary button and Google sign-in.
-class AuthOrDivider extends StatelessWidget {
-  const AuthOrDivider({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    final t = context.tokens;
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 18),
-      child: Row(
-        children: [
-          Expanded(child: Divider(color: t.line, height: 1)),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12),
-            child: Text('or',
-                style: TextStyle(fontSize: 12.5, color: t.ink3)),
-          ),
-          Expanded(child: Divider(color: t.line, height: 1)),
-        ],
-      ),
-    );
-  }
-}
-
-/// Outlined "Continue with Google" button.
-class AuthGoogleButton extends StatelessWidget {
-  final VoidCallback onPressed;
-  final bool disabled;
-  const AuthGoogleButton({
-    super.key,
-    required this.onPressed,
-    this.disabled = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final t = context.tokens;
-    return Opacity(
-      opacity: disabled ? 0.65 : 1,
-      child: Material(
-        color: t.card,
-        borderRadius: BorderRadius.circular(12),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(12),
-          onTap: disabled ? null : onPressed,
-          child: Container(
-            height: 48,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: t.line),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(PhosphorIconsBold.googleLogo, size: 18, color: t.ink),
-                const SizedBox(width: 10),
-                Text(
-                  'Continue with Google',
-                  style: TextStyle(
-                    fontSize: 14.4,
-                    fontWeight: FontWeight.w600,
-                    color: t.ink,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 /// Centered footer prompt: "prefix" + a tappable teal "action".
 class AuthFooterLink extends StatelessWidget {
   final String prefix;
