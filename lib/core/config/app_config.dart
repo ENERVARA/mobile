@@ -1,6 +1,6 @@
 /// App-wide configuration. The API base URL can be overridden at build time
-/// with `--dart-define=API_URL=...`; it defaults to the Railway **staging**
-/// backend (matches the `staging` branch this app was ported from).
+/// with `--dart-define=API_URL=...`; it defaults to the Railway **production**
+/// (master) backend.
 class AppConfig {
   AppConfig._();
 
@@ -8,19 +8,19 @@ class AppConfig {
   static const tagline = 'Hospital-grade care. Zero waiting rooms.';
   static const version = '1.0.0';
 
-  /// Staging: `enervara-backend` (hyphen). Prod: `enervarabackend` (no hyphen).
+  /// Prod: `enervarabackend` (no hyphen). Staging: `enervara-backend` (hyphen).
   static const apiBaseUrl = String.fromEnvironment(
     'API_URL',
-    defaultValue: 'https://enervara-backend.up.railway.app/api',
+    defaultValue: 'https://enervarabackend.up.railway.app/api',
   );
 
   /// The deployed web app's origin — used only to build the public SOAP
   /// share link (`<webAppUrl>/share/soap/:token>`), which is rendered by the
-  /// web app's `SoapSharePage`, not by this app. Staging: `enervara-app`
-  /// (hyphen). Prod: `app.enervara.com`.
+  /// web app's `SoapSharePage`, not by this app. Prod: `app.enervara.com`.
+  /// Staging: `enervara-app` (hyphen, on Railway).
   static const webAppUrl = String.fromEnvironment(
     'WEB_APP_URL',
-    defaultValue: 'https://enervara-app.up.railway.app',
+    defaultValue: 'https://app.enervara.com',
   );
 
   static const emergencyNumber = '112';

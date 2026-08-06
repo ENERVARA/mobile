@@ -7,6 +7,7 @@ import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/context_ext.dart';
+import '../../../../core/utils/block_content.dart';
 import '../../../../core/utils/formatters.dart';
 import '../../../../data/models/chat.dart';
 import '../../../../data/services/chat_service.dart';
@@ -70,11 +71,14 @@ class _MessageListState extends ConsumerState<MessageList> {
 
     final rows = <Widget>[];
     for (final m in chat.messages) {
+      final panel = _toPanel(m, chat.imageUploadProgress);
+      // Never render an empty assistant bubble (e.g. a turn whose only block
+      // is a hidden follow_up_questions chip) — skip the row entirely, same
+      // as the dashboard's MessageList.
+      final body = _buildMessageBody(context, panel, panel.isUser);
+      if (body == null) continue;
       rows.add(
-        _MessageRow(
-          message: _toPanel(m, chat.imageUploadProgress),
-          userInitial: widget.userInitial,
-        ),
+        _MessageRow(message: panel, userInitial: widget.userInitial, body: body),
       );
     }
     if (chat.isStreaming) {
@@ -149,10 +153,92 @@ class _Avatar extends StatelessWidget {
 
 // ─── Message row ─────────────────────────────────────────────────────────────
 
+/// Builds the rendered body for one message, or `null` when there is
+/// genuinely nothing to show. Returning `null` lets the caller skip the
+/// whole row so we never draw an avatar next to an empty bubble. Mirrors
+/// `MessageList.tsx#buildBody`.
+///
+/// Emptiness guard: a message can carry blocks that all render to nothing
+/// (an interview turn that's only `follow_up_questions`, or a future/unknown
+/// block type). Rather than render an empty bubble, fall back to the
+/// readable text those blocks carry; if there's none, render nothing at all.
+Widget? _buildMessageBody(BuildContext context, PanelMessage message, bool isUser) {
+  if (message.imageFileId != null) {
+    return _ImageBubble(message: message, isUser: isUser);
+  }
+
+  final blocks = message.blocks;
+  if (blocks != null && blocks.isNotEmpty) {
+    if (blocks.any(isRenderableBlock)) {
+      // At least one block renders visibly — render them all (BlockRenderer
+      // hides follow_up_questions itself, so trailing chips stay hidden).
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          for (var i = 0; i < blocks.length; i++)
+            Padding(
+              padding: EdgeInsets.only(top: i == 0 ? 0 : 8),
+              child: BlockRenderer(block: blocks[i]),
+            ),
+        ],
+      );
+    }
+    // No block renders visibly → show the content those blocks carry (e.g.
+    // the interview question) instead of an empty bubble; nothing if truly empty.
+    final fallback = deriveFallbackText(message.text, blocks);
+    return fallback.isEmpty ? null : novaTextBubble(context, fallback);
+  }
+
+  // Plain text / image-analysis path.
+  if (isUser) {
+    return _userBubble(message.text);
+  }
+  final analysis = message.analysis;
+  final hasText = message.text.trim().isNotEmpty;
+  if (!hasText && analysis == null) return null;
+  return Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      if (hasText) novaTextBubble(context, message.text),
+      if (analysis != null)
+        Padding(
+          padding: const EdgeInsets.only(top: 8),
+          child: _AnalysisCard(analysis: analysis),
+        ),
+    ],
+  );
+}
+
+Widget _userBubble(String text) {
+  return Container(
+    padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
+    decoration: const BoxDecoration(
+      color: AppColors.teal,
+      borderRadius: BorderRadius.only(
+        topLeft: Radius.circular(16),
+        topRight: Radius.circular(4),
+        bottomRight: Radius.circular(16),
+        bottomLeft: Radius.circular(16),
+      ),
+    ),
+    child: Text(
+      text,
+      style: const TextStyle(fontSize: 13.8, height: 1.4, color: Colors.white),
+    ),
+  );
+}
+
 class _MessageRow extends StatelessWidget {
   final PanelMessage message;
   final String userInitial;
-  const _MessageRow({required this.message, required this.userInitial});
+  final Widget body;
+  const _MessageRow({
+    required this.message,
+    required this.userInitial,
+    required this.body,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -167,7 +253,7 @@ class _MessageRow extends StatelessWidget {
             : CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          _content(context, isUser),
+          body,
           if (message.time.isNotEmpty)
             Padding(
               padding: const EdgeInsets.only(top: 3),
@@ -190,66 +276,6 @@ class _MessageRow extends StatelessWidget {
           ? MainAxisAlignment.end
           : MainAxisAlignment.start,
       children: children,
-    );
-  }
-
-  Widget _content(BuildContext context, bool isUser) {
-    if (message.imageFileId != null) {
-      return _ImageBubble(message: message, isUser: isUser);
-    }
-    final blocks = message.blocks;
-    if (blocks != null && blocks.isNotEmpty) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          for (var i = 0; i < blocks.length; i++)
-            Padding(
-              padding: EdgeInsets.only(top: i == 0 ? 0 : 8),
-              child: BlockRenderer(block: blocks[i]),
-            ),
-        ],
-      );
-    }
-    final analysis = message.analysis;
-    return Column(
-      crossAxisAlignment: isUser
-          ? CrossAxisAlignment.end
-          : CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        isUser
-            ? _userBubble(message.text)
-            : novaTextBubble(context, message.text),
-        if (analysis != null)
-          Padding(
-            padding: const EdgeInsets.only(top: 8),
-            child: _AnalysisCard(analysis: analysis),
-          ),
-      ],
-    );
-  }
-
-  Widget _userBubble(String text) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
-      decoration: const BoxDecoration(
-        color: AppColors.teal,
-        borderRadius: BorderRadius.only(
-          topLeft: Radius.circular(16),
-          topRight: Radius.circular(4),
-          bottomRight: Radius.circular(16),
-          bottomLeft: Radius.circular(16),
-        ),
-      ),
-      child: Text(
-        text,
-        style: const TextStyle(
-          fontSize: 13.8,
-          height: 1.4,
-          color: Colors.white,
-        ),
-      ),
     );
   }
 }
@@ -534,15 +560,18 @@ class _StreamingRow extends StatelessWidget {
     final t = context.tokens;
     final children = <Widget>[];
 
-    if (blocks.isNotEmpty) {
-      for (var i = 0; i < blocks.length; i++) {
-        children.add(
-          Padding(
-            padding: EdgeInsets.only(top: i == 0 ? 0 : 8),
-            child: BlockRenderer(block: blocks[i]),
-          ),
-        );
-      }
+    // Only count blocks that actually render something (mirrors
+    // isRenderableBlock) — otherwise a turn that's so far only produced a
+    // hidden follow_up_questions block would add invisible padding and never
+    // fall through to the "thinking" indicator below.
+    for (final b in blocks) {
+      if (!isRenderableBlock(b)) continue;
+      children.add(
+        Padding(
+          padding: EdgeInsets.only(top: children.isEmpty ? 0 : 8),
+          child: BlockRenderer(block: b),
+        ),
+      );
     }
     if (content.isNotEmpty) {
       children.add(

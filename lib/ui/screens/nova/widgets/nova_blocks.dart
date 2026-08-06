@@ -70,113 +70,68 @@ Widget _summaryBubble(BuildContext context, String text) {
   );
 }
 
-// ─── Shared collapsible card scaffolding ──────────────────────────────────────
+// ─── Shared card scaffolding ───────────────────────────────────────────────
 
 /// The card shell used by every structured list block (condition list, next
-/// steps, OTC meds, lab tests, bullet list, key points), with a built-in
-/// collapse/expand affordance:
-///
-/// - [headerToggles] true (Next steps / OTC / Lab tests): the block's own
-///   header IS the tap target, with a chevron that flips as it (dis)closes.
-/// - [headerToggles] false (everything else): the header stays static and a
-///   separate "View more" / "View less" row toggles the body — used when the
-///   block's own label isn't a natural collapse control (or has none at all,
-///   e.g. an untitled bullet list).
-class _CollapsibleCard extends StatefulWidget {
+/// steps, OTC meds, lab tests, bullet list, key points). Mirrors the
+/// dashboard's block cards 1:1 — header (icon + label) always static, body
+/// always fully rendered. No collapse/expand: the dashboard's block
+/// components (`NextStepsList.tsx`, `OtcMedications.tsx`, `LabTests.tsx`,
+/// `ConditionCards.tsx`, `BulletList.tsx`, `KeyPoints.tsx`) never hide their
+/// content behind a toggle, so this must not either — a collapsed-by-default
+/// card previously made every non-trivial reply (anything beyond a plain
+/// `summary` block) look empty until the user discovered they had to tap it.
+class _BlockCard extends StatelessWidget {
   final IconData? icon;
   final String? label;
   final Widget body;
-  final bool headerToggles;
 
-  const _CollapsibleCard({
-    this.icon,
-    this.label,
-    required this.body,
-    this.headerToggles = true,
-  });
-
-  @override
-  State<_CollapsibleCard> createState() => _CollapsibleCardState();
-}
-
-class _CollapsibleCardState extends State<_CollapsibleCard> {
-  bool _expanded = false;
-  void _toggle() => setState(() => _expanded = !_expanded);
+  const _BlockCard({this.icon, this.label, required this.body});
 
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
-    final hasLabel = widget.label != null && widget.label!.trim().isNotEmpty;
-    final headerIsToggle = hasLabel && widget.headerToggles;
+    final hasLabel = label != null && label!.trim().isNotEmpty;
 
     Widget? header;
     if (hasLabel) {
-      final row = Row(
-        children: [
-          Container(
-            width: 22,
-            height: 22,
-            alignment: Alignment.center,
-            decoration: const BoxDecoration(
-              color: AppColors.teal,
-              shape: BoxShape.circle,
-            ),
-            child: Icon(
-              widget.icon ?? PhosphorIconsBold.info,
-              size: 12,
-              color: Colors.white,
-            ),
-          ),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              widget.label!.toUpperCase(),
-              style: TextStyle(
-                fontSize: 11.5,
-                fontWeight: FontWeight.w700,
-                letterSpacing: 0.6,
-                color: t.ink2,
-              ),
-            ),
-          ),
-          if (headerIsToggle)
-            AnimatedRotation(
-              turns: _expanded ? 0.5 : 0,
-              duration: const Duration(milliseconds: 180),
-              child: Icon(PhosphorIconsBold.caretDown, size: 14, color: t.ink3),
-            ),
-        ],
-      );
       header = Container(
         padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
         decoration: BoxDecoration(
           color: t.soft,
           border: Border(bottom: BorderSide(color: t.line)),
         ),
-        child: headerIsToggle
-            ? GestureDetector(
-                onTap: _toggle,
-                behavior: HitTestBehavior.opaque,
-                child: row,
-              )
-            : row,
+        child: Row(
+          children: [
+            Container(
+              width: 22,
+              height: 22,
+              alignment: Alignment.center,
+              decoration: const BoxDecoration(
+                color: AppColors.teal,
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                icon ?? PhosphorIconsBold.info,
+                size: 12,
+                color: Colors.white,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                label!.toUpperCase(),
+                style: TextStyle(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.6,
+                  color: t.ink2,
+                ),
+              ),
+            ),
+          ],
+        ),
       );
-    }
-
-    final Widget content;
-    if (headerIsToggle) {
-      content = _expanded ? widget.body : const SizedBox.shrink();
-    } else if (_expanded) {
-      content = Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          widget.body,
-          _viewToggleRow(context, expanded: true, onTap: _toggle),
-        ],
-      );
-    } else {
-      content = _viewToggleRow(context, expanded: false, onTap: _toggle);
     }
 
     return Container(
@@ -196,47 +151,10 @@ class _CollapsibleCardState extends State<_CollapsibleCard> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [if (header != null) header, content],
+        children: [if (header != null) header, body],
       ),
     );
   }
-}
-
-Widget _viewToggleRow(
-  BuildContext context, {
-  required bool expanded,
-  required VoidCallback onTap,
-}) {
-  return GestureDetector(
-    onTap: onTap,
-    behavior: HitTestBehavior.opaque,
-    child: Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 10),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Text(
-            expanded ? 'View less' : 'View more',
-            style: const TextStyle(
-              fontSize: 12.6,
-              fontWeight: FontWeight.w700,
-              color: AppColors.tealD,
-            ),
-          ),
-          const SizedBox(width: 4),
-          AnimatedRotation(
-            turns: expanded ? 0.5 : 0,
-            duration: const Duration(milliseconds: 180),
-            child: const Icon(
-              PhosphorIconsBold.caretDown,
-              size: 12,
-              color: AppColors.tealD,
-            ),
-          ),
-        ],
-      ),
-    ),
-  );
 }
 
 // ─── condition_list ──────────────────────────────────────────────────────────
@@ -261,10 +179,9 @@ class _ConditionCards extends StatelessWidget {
   Widget build(BuildContext context) {
     if (conditions.isEmpty) return const SizedBox.shrink();
     final t = context.tokens;
-    return _CollapsibleCard(
+    return _BlockCard(
       icon: PhosphorIconsBold.stethoscope,
       label: 'Possible conditions',
-      headerToggles: false,
       body: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -405,7 +322,7 @@ class _NextSteps extends StatelessWidget {
   Widget build(BuildContext context) {
     if (steps.isEmpty) return const SizedBox.shrink();
     final t = context.tokens;
-    return _CollapsibleCard(
+    return _BlockCard(
       icon: PhosphorIconsBold.listChecks,
       label: 'Next steps',
       body: Column(
@@ -469,10 +386,9 @@ class _BulletList extends StatelessWidget {
     if (items.isEmpty) return const SizedBox.shrink();
     final t = context.tokens;
     final hasTitle = title != null && title!.trim().isNotEmpty;
-    return _CollapsibleCard(
+    return _BlockCard(
       icon: PhosphorIconsBold.listBullets,
       label: hasTitle ? title!.trim() : null,
-      headerToggles: false,
       body: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
         child: Column(
@@ -524,10 +440,9 @@ class _KeyPoints extends StatelessWidget {
   Widget build(BuildContext context) {
     if (points.isEmpty) return const SizedBox.shrink();
     final t = context.tokens;
-    return _CollapsibleCard(
+    return _BlockCard(
       icon: PhosphorIconsBold.lightbulb,
       label: 'Key points',
-      headerToggles: false,
       body: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
         child: Column(
@@ -725,7 +640,7 @@ class _OtcMedications extends StatelessWidget {
   Widget build(BuildContext context) {
     if (meds.isEmpty) return const SizedBox.shrink();
     final t = context.tokens;
-    return _CollapsibleCard(
+    return _BlockCard(
       icon: PhosphorIconsBold.pill,
       label: 'Over the counter medication',
       body: Column(
@@ -880,7 +795,7 @@ class _LabTests extends StatelessWidget {
   Widget build(BuildContext context) {
     if (tests.isEmpty) return const SizedBox.shrink();
     final t = context.tokens;
-    return _CollapsibleCard(
+    return _BlockCard(
       icon: PhosphorIconsBold.flask,
       label: 'Lab tests',
       body: Column(
