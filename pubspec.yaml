@@ -1,7 +1,7 @@
 name: enervara
 description: "Enervara — hospital-grade care, zero waiting rooms. Mobile app."
 publish_to: 'none'
-version: 1.0.0+8
+version: 1.0.0+9
 
 environment:
   sdk: ^3.9.2

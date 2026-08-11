@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -59,8 +60,9 @@ class _SignupPageState extends ConsumerState<SignupPage> {
       if (!mounted) return;
       setState(() => _sent = true);
       AppMessenger.success('Verification link sent to ${_email.text.trim()}');
-    } catch (_) {
-      // The API client already surfaced the error toast.
+    } catch (e) {
+      if (!mounted) return;
+      AppMessenger.error(_signupErrorMessage(e));
     }
   }
 
@@ -75,9 +77,41 @@ class _SignupPageState extends ConsumerState<SignupPage> {
           );
       if (!mounted) return;
       AppMessenger.success('Verification link resent');
-    } catch (_) {
-      // handled by the API client interceptor
+    } catch (e) {
+      if (!mounted) return;
+      AppMessenger.error(_signupErrorMessage(e));
     }
+  }
+
+  /// Never trust the global Dio interceptor to have already surfaced this —
+  /// it deliberately stays silent on a *responseless* failure (connection
+  /// reset/timeout, or a server-side exception that never sends a reply),
+  /// which is exactly what a backend crashing on a duplicate-email insert
+  /// looks like from here. Signup is important enough to always say
+  /// something, so this classifies the failure itself rather than assuming
+  /// a toast already fired.
+  String _signupErrorMessage(Object e) {
+    if (e is DioException) {
+      final status = e.response?.statusCode;
+      final data = e.response?.data;
+      final serverMsg = (data is Map ? data['message']?.toString() : null) ?? '';
+      final lower = serverMsg.toLowerCase();
+      final looksDuplicate = status == 409 ||
+          lower.contains('already') ||
+          lower.contains('exist') ||
+          lower.contains('registered') ||
+          lower.contains('in use');
+      if (looksDuplicate) {
+        return 'This email is already registered. Try signing in instead.';
+      }
+      if (serverMsg.isNotEmpty) return serverMsg;
+      // No response at all (timeout / connection reset / server crash) —
+      // a duplicate-email insert failing uncaught server-side is the most
+      // common real-world cause of this from the signup form specifically.
+      return 'Could not create your account — this email may already be '
+          'registered. Try signing in, or try again in a moment.';
+    }
+    return 'Could not create your account. Please try again.';
   }
 
   String? _phoneValidator(String? v) {
