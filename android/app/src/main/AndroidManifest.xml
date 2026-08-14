@@ -4,6 +4,18 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- Nova voice input — mic capture for the `record` package. -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <!-- Daily location check-in (LocationService / LocationBackgroundTask) —
+         ACCESS_BACKGROUND_LOCATION is required on Android 10+ (API 29+) for
+         the WorkManager periodic task to read location while the app isn't
+         in the foreground; requested at runtime as a SEPARATE step after
+         foreground access is granted (see LocationService.requestBackgroundPermission),
+         never bundled into one prompt — Android silently drops it otherwise. -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
+    <!-- Don't exclude devices without GPS hardware from the Play Store listing —
+         geolocator can still resolve a coarser network-based fix on those. -->
+    <uses-feature android:name="android.hardware.location.gps" android:required="false" />
     <application
         android:label="enervara"
         android:name="${applicationName}"

@@ -1,7 +1,7 @@
 name: enervara
 description: "Enervara — hospital-grade care, zero waiting rooms. Mobile app."
 publish_to: 'none'
-version: 1.0.0+9
+version: 1.0.0+10
 
 environment:
   sdk: ^3.9.2
@@ -38,6 +38,10 @@ dependencies:
   # Voice input (mic capture for Nova's speech-to-text)
   record: ^6.2.1
   http_parser: ^4.1.2
+
+  #location
+  geolocator: ^14.0.2
+  workmanager: ^0.6.0
 
   # Emergency dialer + external links
   url_launcher: ^6.3.1

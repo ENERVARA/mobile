@@ -6,11 +6,13 @@ import 'package:intl/intl.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/context_ext.dart';
 import '../../../data/constants/specialities.dart';
+import '../../../data/services/location_service.dart';
 import '../../../state/auth_provider.dart';
 import '../../../state/onboarding_provider.dart';
 import '../../widgets/speciality_card.dart';
 import 'widgets/ask_query_card.dart';
 import 'widgets/basic_onboarding_sheet.dart';
+import 'widgets/location_consent_sheet.dart';
 import 'widgets/resume_care_card.dart';
 import 'widgets/start_care_card.dart';
 
@@ -30,6 +32,7 @@ bool _specialityPickerShown = false;
 
 class _DashboardPageState extends ConsumerState<DashboardPage> {
   bool _basicsShown = false;
+  bool _locationConsentChecked = false;
 
   @override
   void initState() {
@@ -40,7 +43,8 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
   }
 
   /// Bare-minimum H/W modal only during initial onboarding (when user hasn't
-  /// set height/weight yet); otherwise the once-per-session speciality picker.
+  /// set height/weight yet); otherwise the once-per-session speciality
+  /// picker, then (once, ever) the background-location disclosure.
   void _maybeShowIntro(OnboardingUiState onboarding, bool userHasBasics) {
     if (!onboarding.isLoaded || _basicsShown) return;
     // Only show basics modal if user hasn't already filled in height/weight
@@ -56,7 +60,23 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) showSpecialityPicker(context);
       });
+      return;
     }
+    _maybeShowLocationConsent();
+  }
+
+  /// Fires once ever per install (persisted, not session-scoped) — checked
+  /// only after the basics/speciality intros are out of the way so modals
+  /// never stack.
+  void _maybeShowLocationConsent() {
+    if (_locationConsentChecked) return;
+    _locationConsentChecked = true;
+    LocationService.instance.hasDecidedConsent().then((decided) {
+      if (decided || !mounted) return;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) showLocationConsentSheet(context);
+      });
+    });
   }
 
   @override

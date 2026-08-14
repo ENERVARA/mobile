@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'app.dart';
+import 'core/background/location_task.dart';
 import 'core/notifications/push_notification_service.dart';
 import 'firebase_options.dart';
 
@@ -14,6 +15,7 @@ Future<void> main() async {
     // Run initializations with timeout to avoid hanging indefinitely on cold start
     await Future.wait([
       Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform),
+      LocationBackgroundTask.initialize(),
     ]).timeout(const Duration(seconds: 10));
 
     FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
