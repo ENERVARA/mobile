@@ -720,6 +720,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.0.0"
+  native_geofence:
+    dependency: "direct main"
+    description:
+      name: native_geofence
+      sha256: b24e2987c403e8be164b5710475c448d00fa80e9257a7c13c9c6447fb362f69c
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.2.1"
   open_filex:
     dependency: "direct main"
     description:
@@ -1149,14 +1157,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "5.15.0"
-  workmanager:
-    dependency: "direct main"
-    description:
-      name: workmanager
-      sha256: f3c3ce6d79cce53eee4a29dd2e8328c25db5ba5d9062fcc5e8f3c71e0af9b7e4
-      url: "https://pub.dev"
-    source: hosted
-    version: "0.6.0"
   xdg_directories:
     dependency: transitive
     description:

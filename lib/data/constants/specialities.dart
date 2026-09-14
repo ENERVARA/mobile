@@ -282,11 +282,24 @@ const List<Speciality> kSpecialities = [
   ),
 ];
 
-/// Only these specialities are fully built out for the early-access rollout.
-/// Mobile currently only ships General Medicine — every other speciality
-/// (including ones the dashboard has already enabled) shows as "Coming soon"
-/// here until they're verified on this platform.
-const Set<String> kEnabledSpecialitySlugs = {'general-medicine'};
+/// Only these specialities are fully built out for the early-access rollout —
+/// every other speciality shows as "Coming soon" until it's enabled here.
+/// Live chat backends confirmed for all six (see docs/api-keys or ask
+/// whoever manages Railway): general-medicine, cardiology, dermatology,
+/// pulmonology, gastroenterology.
+///
+/// NOTE: this flag only controls the mobile UI. For chat to actually work
+/// end-to-end for a newly-enabled speciality, the Railway backend also needs
+/// (a) the slug added to its own `enabledSpecialities.ts` allowlist, and
+/// (b) `CHAT_API_URL_<SLUG>` + `CHAT_API_KEY_<SLUG>` env vars set to that
+/// speciality's upstream URL/key — both server-side, outside this repo.
+const Set<String> kEnabledSpecialitySlugs = {
+  'general-medicine',
+  'cardiology',
+  'dermatology',
+  'pulmonology',
+  'gastroenterology',
+};
 
 const String kDefaultSpecialitySlug = 'general-medicine';
 

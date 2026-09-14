@@ -41,6 +41,10 @@ class MedicalQueryService {
     _Rule('ent', 'Ear, nose and throat symptoms map to ENT.', [
       'ear', 'nose', 'throat', 'sinus', 'hearing', 'tonsil', 'sore throat', 'congestion', 'vertigo',
     ]),
+    _Rule('pulmonology', 'This sounds like a lung or breathing concern.', [
+      'lung', 'lungs', 'cough', 'wheeze', 'wheezing', 'asthma', 'phlegm', 'mucus', 'bronchitis',
+      'shortness of breath', 'pneumonia',
+    ]),
   ];
 
   Future<MedicalQueryResult> askMedicalQuery(String query) async {

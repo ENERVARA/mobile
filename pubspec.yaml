@@ -1,7 +1,7 @@
 name: enervara
 description: "Enervara — hospital-grade care, zero waiting rooms. Mobile app."
 publish_to: 'none'
-version: 1.0.0+10
+version: 1.0.0+12
 
 environment:
   sdk: ^3.9.2
@@ -39,9 +39,11 @@ dependencies:
   record: ^6.2.1
   http_parser: ^4.1.2
 
-  #location
+  # Location — one-shot fixes (geolocator) + battery-efficient native
+  # geofencing for the "continuous" access mode (native_geofence), instead of
+  # a fixed-interval background poll.
   geolocator: ^14.0.2
-  workmanager: ^0.6.0
+  native_geofence: ^1.2.1
 
   # Emergency dialer + external links
   url_launcher: ^6.3.1
@@ -68,7 +70,9 @@ flutter_launcher_icons:
   ios: true
   remove_alpha_ios: true
   image_path: "assets/images/logo.png"
-  min_sdk_android: 21
+  # 26, not 21 — matches android/app/build.gradle.kts's minSdk, raised for
+  # native_geofence's Android requirement.
+  min_sdk_android: 26
   background_color_ios: "#EEF4F1"
   adaptive_icon_background: "#EEF4F1"
   adaptive_icon_foreground: "assets/images/logo.png"

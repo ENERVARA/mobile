@@ -11,10 +11,12 @@ import '../../../core/theme/app_gradients.dart';
 import '../../../core/theme/context_ext.dart';
 import '../../../core/ui/app_messenger.dart';
 import '../../../core/utils/formatters.dart';
+import '../../../data/services/location_service.dart';
 import '../../../state/auth_provider.dart';
 import '../../../state/health_profile_provider.dart';
 import '../../../state/onboarding_provider.dart';
 import '../../widgets/app_button.dart';
+import '../../widgets/location_toggle_button.dart';
 import 'sections/allergies_section.dart';
 import 'sections/conditions_section.dart';
 import 'sections/lifestyle_section.dart';
@@ -287,12 +289,24 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
           ],
 
           // ── Title ──
-          Text('My Profile',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, letterSpacing: -0.4, color: t.ink)),
-          const SizedBox(height: 4),
-          Text(
-            'Your personal details and health profile — keep them updated so Nova can personalise your care.',
-            style: TextStyle(fontSize: 13.3, height: 1.45, color: t.ink2),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('My Profile',
+                        style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700, letterSpacing: -0.4, color: t.ink)),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Your personal details and health profile — keep them updated so Nova can personalise your care.',
+                      style: TextStyle(fontSize: 13.3, height: 1.45, color: t.ink2),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 14),
 
@@ -561,6 +575,10 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
           ),
           const SizedBox(height: 16),
 
+          // ── Location card ──
+          _LocationCard(),
+          const SizedBox(height: 16),
+
           // ── Health modules ──
           const LifestyleSection(),
           const SizedBox(height: 16),
@@ -710,6 +728,135 @@ class _SetupBanner extends StatelessWidget {
               ),
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+class _LocationCard extends StatefulWidget {
+  const _LocationCard();
+
+  @override
+  State<_LocationCard> createState() => _LocationCardState();
+}
+
+class _LocationCardState extends State<_LocationCard> {
+  LocationAccessMode _mode = LocationAccessMode.off;
+
+  @override
+  void initState() {
+    super.initState();
+    _refresh();
+  }
+
+  Future<void> _refresh() async {
+    final mode = await LocationService.instance.currentMode();
+    if (mounted) setState(() => _mode = mode);
+  }
+
+  String _statusText(LocationAccessMode mode) {
+    switch (mode) {
+      case LocationAccessMode.off:
+        return 'Off';
+      case LocationAccessMode.whileInUse:
+        return 'On';
+      case LocationAccessMode.continuous:
+        return 'On';
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final isOn = _mode != LocationAccessMode.off;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: t.card,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: t.line),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 28,
+                height: 28,
+                decoration: BoxDecoration(
+                  color: AppColors.teal.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(
+                  PhosphorIconsRegular.mapPin,
+                  size: 16,
+                  color: AppColors.teal,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Location',
+                  style: TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w700,
+                    color: t.ink,
+                  ),
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: isOn
+                      ? AppColors.success.withValues(alpha: 0.12)
+                      : AppColors.warning.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  _statusText(_mode),
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: isOn ? AppColors.success : AppColors.warning,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            "Used to flag illnesses going around your area and to spot symptoms that may be linked to recent travel. We store approximate coordinates only — never a continuous trail.",
+            style: TextStyle(fontSize: 12.8, height: 1.55, color: t.ink2),
+          ),
+          const SizedBox(height: 14),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: t.soft,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Text(
+                  'Saved Aug 30, 2026',
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: t.ink),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '12.976, 80.262',
+                  style: TextStyle(fontSize: 12.6, color: t.ink2),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
+          LocationToggleButton(compact: false, label: 'Update location'),
         ],
       ),
     );

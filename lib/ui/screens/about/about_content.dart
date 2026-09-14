@@ -172,20 +172,22 @@ const kPrivacyPolicy = LegalDoc(
       ]),
     ]),
     LegalSection('Location Data', [
-      Para('With your explicit permission, the Enervara mobile app checks your '
-          'device\'s location approximately once every 24 hours — including '
-          'while the app is closed or not in active use.', strong: true),
-      Para('We use this to:', strong: true),
+      Para('With your explicit permission, the Enervara mobile app can detect '
+          'when you\'ve moved to a new place, so Nova can give more accurate '
+          'guidance for travel-related symptoms — and, soon, to show doctors '
+          'near you.', strong: true),
+      Para('You choose one of three options, shown when you first sign in and '
+          'changeable anytime from the location button in the app:', strong: true),
       Bullets([
-        'Detect recent travel, so Nova can give more accurate guidance for travel-related symptoms',
-        'Power an upcoming "doctors near you" feature',
+        'Continuous — location updates automatically, even when the app is closed, only when you move to a new area (not continuously tracked in between)',
+        'Only when app is open — location updates only while you\'re actively using Enervara',
+        'Don\'t allow — location is never accessed',
       ]),
       Para('Location data is stored securely and is not used for advertising '
           'and is not sold to third parties.'),
-      Para('You choose whether to enable this when first prompted in the app, '
-          'and you can revoke location access at any time from your device\'s '
-          'Settings (Enervara app permissions) — the app continues to work '
-          'without it.'),
+      Para('You can change your choice at any time from the location button '
+          'in the app, or by revoking the permission from your device\'s '
+          'Settings — the app continues to work without it.'),
     ]),
     LegalSection('How We Use Your Information', [
       Para('We use your data to:', strong: true),

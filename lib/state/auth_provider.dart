@@ -4,7 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/api/token_store.dart';
 import '../core/auth/google_auth_service.dart';
-import '../core/background/location_task.dart';
+import '../core/background/location_geofence.dart';
 import '../core/notifications/push_notification_service.dart';
 import '../data/models/user.dart';
 import '../data/services/auth_service.dart';
@@ -79,12 +79,11 @@ class AuthController extends StateNotifier<AuthState> {
       // Register this device for push notifications now that we have a
       // valid session; no-ops quietly if Firebase isn't configured yet.
       unawaited(PushNotificationService.instance.registerToken());
-      // Re-arm the daily location task if this device already consented on
-      // a previous login — ExistingWorkPolicy.keep makes this a no-op when
-      // it's already scheduled, so it's safe to call on every boot. Does
-      // NOT re-prompt for consent; the disclosure sheet is shown elsewhere,
-      // exactly once ever, gated by LocationService.hasDecidedConsent().
-      unawaited(_rearmLocationTaskIfConsented());
+      // Re-arm the location geofence if this device was already on
+      // "continuous" from a previous login — safe/idempotent to call on
+      // every boot. Does NOT re-prompt; the access sheet is shown
+      // elsewhere, exactly once ever, gated by LocationService.hasDecided().
+      unawaited(LocationService.instance.rearmIfNeeded());
     } catch (_) {
       await TokenStore.instance.clear();
       state = state.copyWith(clearUser: true, isAuthenticated: false);
@@ -234,11 +233,11 @@ class AuthController extends StateNotifier<AuthState> {
     await GoogleAuthService.instance.signOut();
     await TokenStore.instance.clear();
     _ref.read(onboardingProvider.notifier).clear();
-    // Stop daily captures for this signed-out session. Deliberately leaves
-    // the consent decision + last snapshot in local storage — re-logging in
-    // on the same device re-arms via _rearmLocationTaskIfConsented() above
-    // without re-showing the disclosure sheet.
-    unawaited(LocationBackgroundTask.cancel());
+    // Stop background tracking for this signed-out session. Deliberately
+    // leaves the chosen access mode + last snapshot in local storage —
+    // re-logging in on the same device re-arms via rearmIfNeeded() above
+    // without re-showing the access sheet.
+    unawaited(LocationGeofenceManager.cancel());
     state = const AuthState(isHydrated: true);
   }
 
@@ -246,14 +245,8 @@ class AuthController extends StateNotifier<AuthState> {
   void forceLogout() {
     TokenStore.instance.clear();
     _ref.read(onboardingProvider.notifier).clear();
-    unawaited(LocationBackgroundTask.cancel());
+    unawaited(LocationGeofenceManager.cancel());
     state = const AuthState(isHydrated: true);
-  }
-
-  Future<void> _rearmLocationTaskIfConsented() async {
-    if (await LocationService.instance.isConsentGranted()) {
-      await LocationBackgroundTask.schedule();
-    }
   }
 
   static String _msg(Object e) => e.toString().replaceFirst('Exception: ', '');

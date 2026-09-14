@@ -47,24 +47,10 @@
 	<true/>
 	<!-- Lets FCM wake the app to process silent/data pushes and refresh the
 	     APNs token in the background. Push Notifications + Background Modes
-	     capabilities still need enabling once in Xcode — see FIREBASE_SETUP.md.
-	     "fetch" is also required for the daily location check-in's
-	     BGAppRefreshTask (LocationBackgroundTask / AppDelegate.swift) to be
-	     allowed to run in the background at all. -->
+	     capabilities still need enabling once in Xcode — see FIREBASE_SETUP.md. -->
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>remote-notification</string>
-		<string>fetch</string>
-	</array>
-	<!-- Daily location check-in's BGAppRefreshTask identifier — must match
-	     kLocationTaskId in lib/core/background/location_task.dart and the
-	     registerPeriodicTask call in AppDelegate.swift exactly. Required by
-	     BGTaskScheduler; per Apple's own restriction, adding this key
-	     disables the legacy performFetchWithCompletionHandler API (not used
-	     here, so that's fine). -->
-	<key>BGTaskSchedulerPermittedIdentifiers</key>
-	<array>
-		<string>com.enervara.enervara.locationRefresh</string>
 	</array>
 	<key>FirebaseAppDelegateProxyEnabled</key>
 	<true/>
@@ -74,14 +60,16 @@
 	<!-- Nova image attach — picking a photo from the library to send in chat. -->
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Enervara needs access to your photos so you can share images with Nova.</string>
-	<!-- Daily location check-in (LocationService) — shown on the initial
-	     foreground request. The "always" companion string below is what iOS
-	     shows if/when the user is offered "Change to Always Allow"; there is
-	     no separate always-only key on modern iOS, this one covers both. -->
+	<!-- Location check-in (LocationService / native_geofence) — shown on the
+	     initial "when in use" request (used by the "only when app is open"
+	     access mode). The "always" companion string below is what iOS shows
+	     when escalating to background geofence monitoring (the "continuous"
+	     access mode) — there is no separate always-only key on modern iOS,
+	     this one covers both. -->
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Enervara checks your location to detect recent travel, helping Nova give more accurate guidance for travel-related symptoms.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
-	<string>Enervara checks your location once a day, even when the app is closed, to detect recent travel and give more accurate health guidance. You can turn this off anytime in Settings.</string>
+	<string>Enervara can check your location in the background — even when the app is closed — to detect when you've moved to a new place, helping Nova give more accurate travel-related health guidance. You can change this anytime from the location button in the app or from Settings.</string>
 	<!-- Google Sign-In's redirect URI on iOS — the REVERSED_CLIENT_ID from
 	     GoogleService-Info.plist, registered as a custom URL scheme. -->
 	<key>CFBundleURLTypes</key>

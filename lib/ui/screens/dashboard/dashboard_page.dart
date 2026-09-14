@@ -12,7 +12,7 @@ import '../../../state/onboarding_provider.dart';
 import '../../widgets/speciality_card.dart';
 import 'widgets/ask_query_card.dart';
 import 'widgets/basic_onboarding_sheet.dart';
-import 'widgets/location_consent_sheet.dart';
+import 'widgets/location_access_sheet.dart';
 import 'widgets/resume_care_card.dart';
 import 'widgets/start_care_card.dart';
 
@@ -32,7 +32,7 @@ bool _specialityPickerShown = false;
 
 class _DashboardPageState extends ConsumerState<DashboardPage> {
   bool _basicsShown = false;
-  bool _locationConsentChecked = false;
+  bool _locationPromptChecked = false;
 
   @override
   void initState() {
@@ -62,19 +62,20 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
       });
       return;
     }
-    _maybeShowLocationConsent();
+    _maybeShowLocationPrompt();
   }
 
   /// Fires once ever per install (persisted, not session-scoped) — checked
   /// only after the basics/speciality intros are out of the way so modals
-  /// never stack.
-  void _maybeShowLocationConsent() {
-    if (_locationConsentChecked) return;
-    _locationConsentChecked = true;
-    LocationService.instance.hasDecidedConsent().then((decided) {
+  /// never stack. The same prompt is reachable anytime after via the
+  /// header's location toggle button.
+  void _maybeShowLocationPrompt() {
+    if (_locationPromptChecked) return;
+    _locationPromptChecked = true;
+    LocationService.instance.hasDecided().then((decided) {
       if (decided || !mounted) return;
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) showLocationConsentSheet(context);
+        if (mounted) showLocationAccessSheet(context);
       });
     });
   }

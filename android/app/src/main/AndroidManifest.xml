@@ -4,15 +4,21 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <!-- Nova voice input — mic capture for the `record` package. -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
-    <!-- Daily location check-in (LocationService / LocationBackgroundTask) —
-         ACCESS_BACKGROUND_LOCATION is required on Android 10+ (API 29+) for
-         the WorkManager periodic task to read location while the app isn't
-         in the foreground; requested at runtime as a SEPARATE step after
-         foreground access is granted (see LocationService.requestBackgroundPermission),
-         never bundled into one prompt — Android silently drops it otherwise. -->
+    <!-- Location check-in (LocationService / LocationGeofenceManager) —
+         ACCESS_BACKGROUND_LOCATION is required on Android 10+ (API 29+) to
+         create a geofence that keeps monitoring while the app isn't in the
+         foreground ("continuous" access mode); requested at runtime as a
+         SEPARATE step after foreground access is granted (see
+         LocationService.requestBackgroundPermission) — never bundled into
+         one prompt, Android silently drops it otherwise. -->
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
+    <!-- Used by plugin: native_geofence — re-registers geofences after a
+         device reboot (Android doesn't retain them across restarts) and
+         allows a foreground service if a geofence callback needs one. -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
     <!-- Don't exclude devices without GPS hardware from the Play Store listing —
          geolocator can still resolve a coarser network-based fix on those. -->
     <uses-feature android:name="android.hardware.location.gps" android:required="false" />
@@ -61,6 +67,21 @@
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_color"
             android:resource="@color/notification_color" />
+
+        <!-- Used by plugin: native_geofence — receives geofence transition
+             broadcasts from Play Services, re-registers geofences after a
+             reboot, and (optionally) runs a short foreground service so a
+             geofence callback can do real work (LocationService.captureAndPersist). -->
+        <receiver android:name="com.chunkytofustudios.native_geofence.receivers.NativeGeofenceBroadcastReceiver"
+                  android:exported="true"/>
+        <receiver android:name="com.chunkytofustudios.native_geofence.receivers.NativeGeofenceRebootBroadcastReceiver"
+                  android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED"></action>
+            </intent-filter>
+        </receiver>
+        <service android:name="com.chunkytofustudios.native_geofence.NativeGeofenceForegroundService"
+                  android:permission="android.permission.BIND_JOB_SERVICE" android:exported="true"/>
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and
