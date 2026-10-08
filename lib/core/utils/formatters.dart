@@ -4,7 +4,8 @@ import 'package:intl/intl.dart';
 class Formatters {
   Formatters._();
 
-  /// Human file size, e.g. `1.2 MB` / `840 KB`.
+  /// Human file size, e.g. `1.2 MB` / `840 KB`. Mirrors `src/utils/fileSize.ts`
+  /// (one decimal from KB upwards).
   static String fileSize(int bytes) {
     if (bytes <= 0) return '0 B';
     const units = ['B', 'KB', 'MB', 'GB'];
@@ -14,8 +15,67 @@ class Formatters {
       size /= 1024;
       unit++;
     }
-    final str = unit == 0 ? size.toStringAsFixed(0) : size.toStringAsFixed(size >= 10 ? 0 : 1);
-    return '$str ${units[unit]}';
+    return '${size.toStringAsFixed(unit > 0 ? 1 : 0)} ${units[unit]}';
+  }
+
+  /// Full weekday date, e.g. `Sunday, July 19, 2026` (`formatDateFull`).
+  static String dateFull(DateTime date) => DateFormat('EEEE, MMMM d, yyyy').format(date);
+
+  /// Date, plus a clock time when the underlying value actually carries one
+  /// (`formatDateTime`). A document's printed date parses to local midnight and
+  /// is shown as a bare date rather than a fabricated "12:00 AM".
+  static String dateTime(DateTime date) {
+    final hasTime = date.hour != 0 || date.minute != 0 || date.second != 0;
+    return hasTime
+        ? DateFormat('MMM d, yyyy · h:mm a').format(date)
+        : DateFormat('MMM d, yyyy').format(date);
+  }
+
+  /// `formatDateTime` for an ISO string; empty when it can't be parsed.
+  static String dateTimeIso(String? iso) {
+    final d = tryParse(iso);
+    return d == null ? '' : dateTime(d);
+  }
+
+  /// `September 2026` (`formatMonthYear`) — timeline month headers.
+  static String monthYear(DateTime date) => DateFormat('MMMM yyyy').format(date);
+
+  /// `10 Sep`, or `10 Sep 2026` with the year (`formatEventDate`, en-GB).
+  static String eventDate(String? iso, {bool withYear = false}) {
+    final d = tryParse(iso);
+    if (d == null) return '';
+    return DateFormat(withYear ? 'dd MMM yyyy' : 'dd MMM').format(d);
+  }
+
+  /// `10 Sep 2026` (en-GB `{ day: 'numeric', month: 'short', year: 'numeric' }`).
+  static String dayMonthYear(DateTime date) => DateFormat('d MMM yyyy').format(date);
+
+  /// `Mon, Oct 5, 10:30 AM` — the short appointment stamp (`toLocaleString` with
+  /// weekday/day/month/hour/minute, en-US).
+  static String appointmentShort(DateTime date) =>
+      DateFormat('EEE, MMM d, hh:mm a').format(date);
+
+  /// `Monday, October 5 at 10:30 AM` — the long appointment stamp.
+  static String appointmentLong(DateTime date) =>
+      DateFormat("EEEE, MMMM d 'at' hh:mm a").format(date);
+
+  /// `Mon, Oct 5` — a slot-picker day heading.
+  static String dayShort(DateTime date) => DateFormat('EEE, MMM d').format(date);
+
+  /// `10:30 AM` — a slot time chip.
+  static String timeHm(DateTime date) => DateFormat('hh:mm a').format(date);
+
+  /// `Oct 5, 10:30 AM` — appointment history timestamps.
+  static String dayMonthTime(DateTime date) => DateFormat('MMM d, hh:mm a').format(date);
+
+  /// Initials for an avatar (`initialsOf`).
+  static String initialsOf(String? first, String? last) {
+    final a = (first ?? '').trim();
+    final b = (last ?? '').trim();
+    final both = ((a.isNotEmpty ? a[0] : '') + (b.isNotEmpty ? b[0] : '')).toUpperCase();
+    if (both.isNotEmpty) return both;
+    final f = first ?? '';
+    return f.isNotEmpty ? f[0].toUpperCase() : 'U';
   }
 
   /// Relative "time ago" — used for conversation + report timestamps.

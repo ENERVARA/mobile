@@ -2,12 +2,15 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 import '../../../../core/theme/app_colors.dart';
+import '../../../../core/theme/app_gradients.dart';
 import '../../../../core/theme/context_ext.dart';
 import '../../../../core/ui/app_messenger.dart';
+import '../../../../core/utils/css_shadow.dart';
 import '../../../../data/constants/specialities.dart';
 import '../../../../state/chat_provider.dart';
 import '../../../../state/nova_ui_provider.dart';
@@ -31,6 +34,28 @@ class _NovaComposerState extends ConsumerState<NovaComposer> {
   String _imageMime = 'image/jpeg';
 
   static const _maxBytes = 10 * 1024 * 1024;
+  bool _focused = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _focusNode.addListener(() {
+      if (mounted) setState(() => _focused = _focusNode.hasFocus);
+    });
+    // A hand-off from another surface (prescription / lab-report analysis)
+    // pre-fills the composer instead of sending for the user.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _takeDraft());
+  }
+
+  /// Read exactly once, so re-opening the panel later never resurrects an old draft.
+  void _takeDraft() {
+    if (!mounted) return;
+    final draft = ref.read(novaUiProvider.notifier).consumeDraft();
+    if (draft != null && draft.isNotEmpty) {
+      _controller.text = draft;
+      _controller.selection = TextSelection.collapsed(offset: draft.length);
+    }
+  }
 
   @override
   void dispose() {
@@ -127,6 +152,10 @@ class _NovaComposerState extends ConsumerState<NovaComposer> {
         ? (activeMatches.isEmpty ? false : activeMatches.first.blocksEnabled)
         : resolvedSlug == kDefaultSpecialitySlug;
 
+    ref.listen<String?>(novaUiProvider.select((s) => s.pendingDraft), (_, draft) {
+      if (draft != null) _takeDraft();
+    });
+
     ref.listen<VoiceState>(voiceProvider, (prev, next) {
       final transcript = next.transcript;
       if (transcript != null && transcript.isNotEmpty) {
@@ -155,8 +184,14 @@ class _NovaComposerState extends ConsumerState<NovaComposer> {
               style: TextStyle(fontSize: 12.5, color: t.ink),
             ),
           ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(14, 8, 14, 16),
+        Container(
+          decoration: BoxDecoration(border: Border(top: BorderSide(color: t.line))),
+          padding: EdgeInsets.fromLTRB(
+            14,
+            8,
+            14,
+            MediaQuery.viewPaddingOf(context).bottom > 16 ? MediaQuery.viewPaddingOf(context).bottom : 16,
+          ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -205,17 +240,14 @@ class _NovaComposerState extends ConsumerState<NovaComposer> {
                 const VoiceRecordBar()
               else
                 Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 4,
-                  ),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   decoration: BoxDecoration(
-                    color: t.soft,
+                    color: _focused ? t.card : t.soft,
                     borderRadius: BorderRadius.circular(14),
-                    border: Border.all(color: t.line),
+                    border: Border.all(color: _focused ? AppColors.teal : t.line),
                   ),
                   child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
                       _iconButton(
                         icon: PhosphorIconsRegular.paperclip,
@@ -224,7 +256,7 @@ class _NovaComposerState extends ConsumerState<NovaComposer> {
                       ),
                       Expanded(
                         child: Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 6),
+                          padding: const EdgeInsets.symmetric(vertical: 4),
                           child: TextField(
                             controller: _controller,
                             focusNode: _focusNode,
@@ -233,8 +265,8 @@ class _NovaComposerState extends ConsumerState<NovaComposer> {
                             keyboardType: TextInputType.multiline,
                             textInputAction: TextInputAction.newline,
                             style: TextStyle(
-                              fontSize: 13.8,
-                              height: 1.4,
+                              fontSize: 13.76,
+                              height: 1.625,
                               color: t.ink,
                             ),
                             decoration: InputDecoration(
@@ -244,7 +276,7 @@ class _NovaComposerState extends ConsumerState<NovaComposer> {
                                   ? 'Add a caption (optional)…'
                                   : 'Ask Nova anything…',
                               hintStyle: TextStyle(
-                                fontSize: 13.8,
+                                fontSize: 13.76,
                                 color: t.ink3,
                               ),
                             ),
@@ -258,10 +290,11 @@ class _NovaComposerState extends ConsumerState<NovaComposer> {
                             ? null
                             : () => ref.read(voiceProvider.notifier).start(),
                       ),
-                      const SizedBox(width: 4),
+                      const SizedBox(width: 8),
                       if (chat.isStreaming)
                         _sendButton(
                           icon: PhosphorIconsFill.stop,
+                          stop: true,
                           onTap: () =>
                               ref.read(chatProvider.notifier).stopStream(),
                         )
@@ -274,10 +307,31 @@ class _NovaComposerState extends ConsumerState<NovaComposer> {
                   ),
                 ),
               const SizedBox(height: 7),
-              Text(
-                'Nova can make mistakes. Check important information.',
+              Text.rich(
+                TextSpan(
+                  text: 'Nova can make mistakes. Check important information.',
+                  children: [
+                    const TextSpan(text: ' · '),
+                    WidgetSpan(
+                      alignment: PlaceholderAlignment.baseline,
+                      baseline: TextBaseline.alphabetic,
+                      child: GestureDetector(
+                        onTap: () => context.push('/about/privacy'),
+                        child: Text(
+                          'Privacy policy',
+                          style: TextStyle(
+                            fontSize: 9.76,
+                            color: t.ink3,
+                            decoration: TextDecoration.underline,
+                            decorationColor: t.ink3,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 9.8, color: t.ink3),
+                style: TextStyle(fontSize: 9.76, color: t.ink3),
               ),
             ],
           ),
@@ -294,27 +348,32 @@ class _NovaComposerState extends ConsumerState<NovaComposer> {
     return GestureDetector(
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
-      child: Padding(
-        padding: const EdgeInsets.all(6),
-        child: Icon(icon, size: 18, color: color),
+      child: SizedBox(
+        width: 28,
+        height: 28,
+        child: Icon(icon, size: 14.4, color: color),
       ),
     );
   }
 
-  Widget _sendButton({required IconData icon, required VoidCallback? onTap}) {
+  Widget _sendButton({required IconData icon, required VoidCallback? onTap, bool stop = false}) {
     return GestureDetector(
       onTap: onTap,
       child: Opacity(
         opacity: onTap == null ? 0.5 : 1,
         child: Container(
-          width: 32,
-          height: 32,
+          width: 28,
+          height: 28,
           alignment: Alignment.center,
           decoration: BoxDecoration(
-            color: AppColors.teal,
-            borderRadius: BorderRadius.circular(9),
+            color: stop ? AppColors.teal : null,
+            gradient: stop ? null : AppGradients.tealCyan,
+            borderRadius: BorderRadius.circular(8),
+            boxShadow: stop
+                ? const []
+                : [cssShadow(AppColors.teal.withValues(alpha: 0.7), y: 3, blur: 10, spread: -3)],
           ),
-          child: Icon(icon, size: 16, color: Colors.white),
+          child: Icon(icon, size: 14.4, color: Colors.white),
         ),
       ),
     );

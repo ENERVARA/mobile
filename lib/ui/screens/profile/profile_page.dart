@@ -362,7 +362,10 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
               borderRadius: BorderRadius.circular(16),
               border: Border.all(color: t.line),
             ),
-            child: Row(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+            Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Container(
@@ -400,6 +403,37 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                     ],
                   ),
                 ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Align(
+              alignment: Alignment.centerRight,
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () async {
+                  await ref.read(authProvider.notifier).logout();
+                  if (context.mounted) context.go('/login');
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(11),
+                    border: Border.all(color: t.line),
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(PhosphorIconsRegular.signOut, size: 15, color: AppColors.coral),
+                      SizedBox(width: 8),
+                      Text(
+                        'Log out',
+                        style: TextStyle(fontSize: 13.76, fontWeight: FontWeight.w600, color: AppColors.coral),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
               ],
             ),
           ),
@@ -601,18 +635,6 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
             style: TextStyle(fontSize: 11.5, height: 1.55, color: t.ink3),
           ),
           const SizedBox(height: 20),
-
-          // ── Sign out ──
-          AppButton(
-            label: 'Sign out',
-            variant: AppButtonVariant.outline,
-            icon: PhosphorIconsRegular.signOut,
-            onPressed: () async {
-              await ref.read(authProvider.notifier).logout();
-              if (context.mounted) context.go('/login');
-            },
-          ),
-          const SizedBox(height: 16),
 
           // ── Danger zone ──
           Container(

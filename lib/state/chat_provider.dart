@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/api/sse_client.dart';
+import '../data/models/care_journey.dart';
 import '../data/models/chat.dart';
 import '../data/models/soap.dart';
 import '../data/services/chat_service.dart';
@@ -42,6 +43,8 @@ class ChatState {
   // on any turn, the "Show this to your doctor" CTA stays available for the
   // rest of that conversation. Keyed by conversation id.
   final Map<String, bool> doctorSummaryReady;
+  // Care-journey rail per conversation, as last reported by the backend.
+  final Map<String, CareJourney> journeys;
   // SOAP-note generation/presentation for the active conversation.
   final SoapUiState soap;
 
@@ -60,6 +63,7 @@ class ChatState {
     this.imageUploadProgress,
     this.streamError,
     this.doctorSummaryReady = const {},
+    this.journeys = const {},
     this.soap = const SoapUiState(),
   });
 
@@ -81,6 +85,7 @@ class ChatState {
     String? streamError,
     bool clearStreamError = false,
     Map<String, bool>? doctorSummaryReady,
+    Map<String, CareJourney>? journeys,
     SoapUiState? soap,
   }) {
     return ChatState(
@@ -102,6 +107,7 @@ class ChatState {
           : (imageUploadProgress ?? this.imageUploadProgress),
       streamError: clearStreamError ? null : (streamError ?? this.streamError),
       doctorSummaryReady: doctorSummaryReady ?? this.doctorSummaryReady,
+      journeys: journeys ?? this.journeys,
       soap: soap ?? this.soap,
     );
   }
@@ -165,11 +171,21 @@ class ChatController extends StateNotifier<ChatState> {
     );
     try {
       final res = await _service.getConversation(id);
+      // Make sure the conversation in the list reflects the latest title /
+      // lastMessageAt the server returned. If it isn't in the current list
+      // (resumed from the cross-speciality "Resume care" card, whose
+      // conversation belongs to a different speciality than the one currently
+      // loaded), ADD it — otherwise capability gates (e.g. image upload) fall
+      // back to the wrong speciality.
+      final conv = res.conversation;
+      final exists = state.conversations.any((c) => c.id == conv.id);
+      final journey = parseCareJourney(res.journey);
       state = state.copyWith(
         messages: res.messages,
-        conversations: state.conversations
-            .map((c) => c.id == res.conversation.id ? res.conversation : c)
-            .toList(),
+        journeys: journey != null ? {...state.journeys, conv.id: journey} : null,
+        conversations: exists
+            ? state.conversations.map((c) => c.id == conv.id ? conv : c).toList()
+            : [conv, ...state.conversations],
         isLoadingMessages: false,
       );
     } catch (_) {
@@ -237,6 +253,14 @@ class ChatController extends StateNotifier<ChatState> {
         },
         onError: (message) {
           state = state.copyWith(streamError: message);
+        },
+        onJourney: (raw) {
+          final journey = parseCareJourney(raw);
+          if (journey != null) {
+            state = state.copyWith(
+              journeys: {...state.journeys, conversationId: journey},
+            );
+          }
         },
       ),
     );

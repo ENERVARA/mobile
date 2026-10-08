@@ -12,7 +12,17 @@ class ChatStreamHandlers {
   final void Function(String message)? onError;
   final void Function(Map<String, dynamic> block)? onBlock;
 
-  const ChatStreamHandlers({this.onChunk, this.onDone, this.onError, this.onBlock});
+  /// Care-journey update (raw — normalised by `parseCareJourney`). Arrives as a
+  /// `journey` event mid-turn and/or on the `done` payload.
+  final void Function(dynamic journey)? onJourney;
+
+  const ChatStreamHandlers({
+    this.onChunk,
+    this.onDone,
+    this.onError,
+    this.onBlock,
+    this.onJourney,
+  });
 }
 
 /// POSTs a user message to the backend's SSE proxy and parses the streamed
@@ -76,6 +86,10 @@ Future<void> streamChatMessage({
               break;
             case 'done':
               handlers.onDone?.call(parsed);
+              if (parsed['journey'] != null) handlers.onJourney?.call(parsed['journey']);
+              break;
+            case 'journey':
+              handlers.onJourney?.call(parsed['journey'] ?? parsed['data']);
               break;
             case 'error':
               handlers.onError?.call((parsed['message'] as String?) ?? 'Chat error');

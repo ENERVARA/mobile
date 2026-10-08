@@ -16,12 +16,18 @@ import '../ui/screens/onboarding/onboarding_page.dart';
 import '../ui/screens/dashboard/dashboard_page.dart';
 import '../ui/screens/specialities/specialities_page.dart';
 import '../ui/screens/specialities/speciality_detail_page.dart';
-import '../ui/screens/history/history_page.dart';
-import '../ui/screens/reports/reports_page.dart';
+import '../ui/screens/doctors/doctors_page.dart';
+import '../ui/screens/care/my_care_page.dart';
+import '../ui/screens/care/book_appointment_page.dart';
+import '../ui/screens/care/appointment_detail_page.dart';
+import '../ui/screens/wellness/wellness_page.dart';
+import '../ui/screens/health_records/health_records_page.dart';
+import '../ui/screens/health_records/health_timeline_page.dart';
 import '../ui/screens/reports/report_detail_page.dart';
+import '../ui/screens/reports/lab_report_detail_page.dart';
+import '../ui/screens/prescriptions/prescription_detail_page.dart';
 import '../ui/screens/profile/profile_page.dart';
 import '../ui/screens/emergency/emergency_page.dart';
-import '../ui/screens/nova/nova_chat_page.dart';
 import '../ui/screens/about/about_content.dart';
 import '../ui/screens/about/about_page.dart';
 import '../ui/screens/about/about_story_page.dart';
@@ -127,13 +133,9 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/about/security',
         builder: (_, __) => const LegalDocPage(doc: kSecurityDoc),
       ),
-      GoRoute(
-        path: '/nova',
-        builder: (_, state) => NovaChatPage(
-          specialitySlug: state.uri.queryParameters['speciality'],
-          conversationId: state.uri.queryParameters['conversation'],
-        ),
-      ),
+      // The app frame animates page changes itself (fade + rise), so every
+      // routed page swaps instantly. Nova is an overlay inside the frame, not a
+      // route — it opens from the header button, the drawer and "Ask Nova" CTAs.
       ShellRoute(
         builder: (context, state, child) => AppShell(location: state.uri.path, child: child),
         routes: [
@@ -142,24 +144,61 @@ final routerProvider = Provider<GoRouter>((ref) {
             pageBuilder: (_, __) => _NoTransitionPage(child: const DashboardPage()),
           ),
           GoRoute(
+            path: '/doctors',
+            pageBuilder: (_, __) => _NoTransitionPage(child: const DoctorsPage()),
+          ),
+          GoRoute(
             path: '/specialities',
             pageBuilder: (_, __) => _NoTransitionPage(child: const SpecialitiesPage()),
           ),
           GoRoute(
             path: '/specialities/:slug',
-            builder: (_, state) => SpecialityDetailPage(slug: state.pathParameters['slug']!),
+            pageBuilder: (_, state) =>
+                _NoTransitionPage(child: SpecialityDetailPage(slug: state.pathParameters['slug']!)),
           ),
           GoRoute(
-            path: '/history',
-            pageBuilder: (_, __) => _NoTransitionPage(child: const HistoryPage()),
+            path: '/care',
+            pageBuilder: (_, __) => _NoTransitionPage(child: const MyCarePage()),
           ),
           GoRoute(
-            path: '/reports',
-            pageBuilder: (_, __) => _NoTransitionPage(child: const ReportsPage()),
+            path: '/care/book',
+            pageBuilder: (_, state) =>
+                _NoTransitionPage(child: BookAppointmentPage(params: state.uri.queryParameters)),
           ),
+          GoRoute(
+            path: '/care/:id',
+            pageBuilder: (_, state) =>
+                _NoTransitionPage(child: AppointmentDetailPage(id: state.pathParameters['id']!)),
+          ),
+          GoRoute(
+            path: '/wellness',
+            pageBuilder: (_, __) => _NoTransitionPage(child: const WellnessPage()),
+          ),
+          GoRoute(
+            path: '/health-records',
+            pageBuilder: (_, __) => _NoTransitionPage(child: const HealthRecordsPage()),
+          ),
+          GoRoute(
+            path: '/health-timeline',
+            pageBuilder: (_, __) => _NoTransitionPage(child: const HealthTimelinePage()),
+          ),
+          // Old URLs keep working.
+          GoRoute(path: '/history', redirect: (_, __) => '/health-timeline'),
+          GoRoute(path: '/reports', redirect: (_, __) => '/health-records'),
           GoRoute(
             path: '/reports/:id',
-            builder: (_, state) => ReportDetailPage(id: state.pathParameters['id']!),
+            pageBuilder: (_, state) =>
+                _NoTransitionPage(child: ReportDetailPage(id: state.pathParameters['id']!)),
+          ),
+          GoRoute(
+            path: '/lab-reports/:id',
+            pageBuilder: (_, state) =>
+                _NoTransitionPage(child: LabReportDetailPage(id: state.pathParameters['id']!)),
+          ),
+          GoRoute(
+            path: '/prescriptions/:id',
+            pageBuilder: (_, state) =>
+                _NoTransitionPage(child: PrescriptionDetailPage(id: state.pathParameters['id']!)),
           ),
           GoRoute(
             path: '/profile',
@@ -167,7 +206,10 @@ final routerProvider = Provider<GoRouter>((ref) {
               child: ProfilePage(setup: state.uri.queryParameters['setup'] == '1'),
             ),
           ),
-          GoRoute(path: '/emergency', builder: (_, __) => const EmergencyPage()),
+          GoRoute(
+            path: '/emergency',
+            pageBuilder: (_, __) => _NoTransitionPage(child: const EmergencyPage()),
+          ),
         ],
       ),
     ],

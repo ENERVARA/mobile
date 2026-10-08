@@ -2,8 +2,8 @@ import 'package:flutter/widgets.dart';
 import 'package:phosphor_flutter/phosphor_flutter.dart';
 
 /// Bottom-tab + drawer navigation. Ported from `src/constants/navigation.ts`
-/// (redesign `NAV_ITEMS` / `MOBILE_NAV_ITEMS`), with Phosphor [IconData]
-/// resolved directly for regular (inactive) and fill (active) weights.
+/// (`NAV_ITEMS` / `PROFILE_NAV_ITEM` / `MOBILE_NAV_ITEMS`), with Phosphor
+/// [IconData] resolved directly for regular (inactive) and fill (active) weights.
 class NavItem {
   final String key;
   final String label;
@@ -22,87 +22,62 @@ class NavItem {
   });
 }
 
-/// Drawer (full sidebar) order.
+/// Health destinations, in the order a patient reaches for them. Profile is
+/// deliberately NOT here: it is an account destination, anchored separately at
+/// the bottom of the drawer (see [kProfileNavItem]).
 const List<NavItem> kNavItems = [
   NavItem(
-    key: 'dashboard',
-    label: 'Dashboard',
+    key: 'home',
+    label: 'Home',
     shortLabel: 'Home',
-    icon: PhosphorIconsRegular.squaresFour,
-    iconFill: PhosphorIconsFill.squaresFour,
+    icon: PhosphorIconsRegular.house,
+    iconFill: PhosphorIconsFill.house,
     path: '/dashboard',
   ),
   NavItem(
-    key: 'specialities',
-    label: 'Specialities',
+    key: 'care',
+    label: 'My Care',
     shortLabel: 'Care',
-    icon: PhosphorIconsRegular.stethoscope,
-    iconFill: PhosphorIconsFill.stethoscope,
-    path: '/specialities',
+    icon: PhosphorIconsRegular.calendarCheck,
+    iconFill: PhosphorIconsFill.calendarCheck,
+    path: '/care',
   ),
   NavItem(
-    key: 'history',
-    label: 'History',
-    shortLabel: 'History',
+    key: 'wellness',
+    label: 'Wellness',
+    shortLabel: 'Wellness',
+    icon: PhosphorIconsRegular.leaf,
+    iconFill: PhosphorIconsFill.leaf,
+    path: '/wellness',
+  ),
+  NavItem(
+    key: 'timeline',
+    label: 'Health Timeline',
+    shortLabel: 'Timeline',
+    icon: PhosphorIconsRegular.clockCounterClockwise,
+    iconFill: PhosphorIconsFill.clockCounterClockwise,
+    path: '/health-timeline',
+  ),
+  NavItem(
+    key: 'records',
+    label: 'Health Records',
+    shortLabel: 'Records',
     icon: PhosphorIconsRegular.folderOpen,
     iconFill: PhosphorIconsFill.folderOpen,
-    path: '/history',
-  ),
-  NavItem(
-    key: 'reports',
-    label: 'Reports',
-    shortLabel: 'Reports',
-    icon: PhosphorIconsRegular.clipboardText,
-    iconFill: PhosphorIconsFill.clipboardText,
-    path: '/reports',
-  ),
-  NavItem(
-    key: 'profile',
-    label: 'Profile',
-    shortLabel: 'Profile',
-    icon: PhosphorIconsRegular.user,
-    iconFill: PhosphorIconsFill.user,
-    path: '/profile',
+    path: '/health-records',
   ),
 ];
 
-/// Mobile bottom-tab items that sit to the LEFT of the centre Nova button.
-/// (Profile lives in the top bar; Nova is the raised centre action.)
-const List<NavItem> kMobileNavLeft = [
-  NavItem(
-    key: 'dashboard',
-    label: 'Dashboard',
-    shortLabel: 'Home',
-    icon: PhosphorIconsRegular.squaresFour,
-    iconFill: PhosphorIconsFill.squaresFour,
-    path: '/dashboard',
-  ),
-  NavItem(
-    key: 'specialities',
-    label: 'Specialities',
-    shortLabel: 'Speciality',
-    icon: PhosphorIconsRegular.stethoscope,
-    iconFill: PhosphorIconsFill.stethoscope,
-    path: '/specialities',
-  ),
-];
+const NavItem kProfileNavItem = NavItem(
+  key: 'profile',
+  label: 'Profile',
+  shortLabel: 'Profile',
+  icon: PhosphorIconsRegular.user,
+  iconFill: PhosphorIconsFill.user,
+  path: '/profile',
+);
 
-/// Mobile bottom-tab items to the RIGHT of the centre Nova button.
-const List<NavItem> kMobileNavRight = [
-  NavItem(
-    key: 'history',
-    label: 'History',
-    shortLabel: 'History',
-    icon: PhosphorIconsRegular.folderOpen,
-    iconFill: PhosphorIconsFill.folderOpen,
-    path: '/history',
-  ),
-  NavItem(
-    key: 'reports',
-    label: 'Reports',
-    shortLabel: 'Reports',
-    icon: PhosphorIconsRegular.clipboardText,
-    iconFill: PhosphorIconsFill.clipboardText,
-    path: '/reports',
-  ),
-];
+/// Mobile bottom tabs: the health destinations only. Profile isn't repeated
+/// here — the header's hamburger opens the drawer, which anchors Profile at
+/// its bottom.
+const List<NavItem> kMobileNavItems = kNavItems;

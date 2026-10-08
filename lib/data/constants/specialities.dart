@@ -284,9 +284,8 @@ const List<Speciality> kSpecialities = [
 
 /// Only these specialities are fully built out for the early-access rollout —
 /// every other speciality shows as "Coming soon" until it's enabled here.
-/// Live chat backends confirmed for all six (see docs/api-keys or ask
-/// whoever manages Railway): general-medicine, cardiology, dermatology,
-/// pulmonology, gastroenterology.
+/// Mirrors the web's `ENABLED_SPECIALITY_SLUGS` (`src/constants/specialities.ts`):
+/// general-medicine, gastroenterology, cardiology, dermatology, ent.
 ///
 /// NOTE: this flag only controls the mobile UI. For chat to actually work
 /// end-to-end for a newly-enabled speciality, the Railway backend also needs
@@ -295,10 +294,10 @@ const List<Speciality> kSpecialities = [
 /// speciality's upstream URL/key — both server-side, outside this repo.
 const Set<String> kEnabledSpecialitySlugs = {
   'general-medicine',
+  'gastroenterology',
   'cardiology',
   'dermatology',
-  'pulmonology',
-  'gastroenterology',
+  'ent',
 };
 
 const String kDefaultSpecialitySlug = 'general-medicine';
@@ -318,4 +317,12 @@ Speciality? specialityBySlug(String? slug) {
 String specialityName(String? slug) {
   final target = isSpecialityEnabled(slug) ? slug : kDefaultSpecialitySlug;
   return specialityBySlug(target)?.name ?? 'General Medicine';
+}
+
+/// Icon name for a slug's speciality, resolved like [specialityName] (unknown /
+/// not-yet-enabled slugs fall back to the default speciality). Nova's avatar
+/// uses it so the assistant wears the face of the speciality it answers as.
+String specialityIcon(String? slug) {
+  final target = isSpecialityEnabled(slug) ? slug : kDefaultSpecialitySlug;
+  return specialityBySlug(target)?.icon ?? 'Stethoscope';
 }

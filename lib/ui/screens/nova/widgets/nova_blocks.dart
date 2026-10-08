@@ -5,7 +5,9 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../core/theme/app_colors.dart';
 import '../../../../core/theme/context_ext.dart';
+import '../../../../core/utils/css_shadow.dart';
 import '../../../../data/models/chat.dart';
+import 'question_block.dart';
 
 /// Dispatches a single structured block to its renderer — mirrors
 /// `blocks/BlockRenderer.tsx`. Never throws: an unrecognised block falls back
@@ -34,6 +36,7 @@ class BlockRenderer extends StatelessWidget {
     }
     if (b is OtcMedicationsBlock) return _OtcMedications(meds: b.medications);
     if (b is LabTestsBlock) return _LabTests(tests: b.tests);
+    if (b is QuestionBlock) return QuestionBlockView(block: b);
     if (b is FollowUpQuestionsBlock) return const SizedBox.shrink();
     if (b is UnknownBlock) {
       final t = b.text;
@@ -44,28 +47,93 @@ class BlockRenderer extends StatelessWidget {
   }
 }
 
-/// A solid-teal Nova text bubble (used for `summary` blocks + plain replies).
-Widget novaTextBubble(BuildContext context, String text) =>
-    _summaryBubble(context, text);
+const _novaRadius = BorderRadius.only(
+  topLeft: Radius.circular(4),
+  topRight: Radius.circular(16),
+  bottomRight: Radius.circular(16),
+  bottomLeft: Radius.circular(16),
+);
 
-/// The Nova bubble — `NOVA_BUBBLE` in MessageList.tsx:
-/// `rounded-[4px_16px_16px_16px] bg-soft … text-ink`.
+/// Nova's reply bubble (`.nova-bubble`): the card surface with a teal hairline,
+/// a soft teal glow and a small particle cluster breaking its outer corner.
+/// Used for plain replies, streamed text and the "thinking" state.
+class NovaBubble extends StatelessWidget {
+  final Widget child;
+  const NovaBubble({super.key, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
+          decoration: BoxDecoration(
+            color: t.card,
+            borderRadius: _novaRadius,
+            border: Border.all(color: AppColors.teal.withValues(alpha: context.isDark ? 0.24 : 0.18)),
+            boxShadow: [
+              cssShadow(const Color(0x081A2027), y: 1, blur: 2),
+              cssShadow(AppColors.teal.withValues(alpha: 0.35), y: 6, blur: 16, spread: -8),
+            ],
+          ),
+          child: child,
+        ),
+        const Positioned(
+          top: -6,
+          right: -8,
+          width: 28,
+          height: 22,
+          child: IgnorePointer(child: CustomPaint(painter: _ParticlePainter())),
+        ),
+      ],
+    );
+  }
+}
+
+class _ParticlePainter extends CustomPainter {
+  const _ParticlePainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    void dot(double x, double y, double r, Color c) {
+      final center = Offset(x, y);
+      canvas.drawCircle(
+        center,
+        r,
+        Paint()
+          ..shader = RadialGradient(colors: [c, c.withValues(alpha: 0)], stops: const [0, 0.7])
+              .createShader(Rect.fromCircle(center: center, radius: r)),
+      );
+    }
+
+    dot(21, 6, 2.6, AppColors.teal.withValues(alpha: 0.55));
+    dot(12, 13, 1.9, AppColors.cyan.withValues(alpha: 0.45));
+    dot(24, 15, 1.3, AppColors.teal.withValues(alpha: 0.32));
+  }
+
+  @override
+  bool shouldRepaint(_ParticlePainter old) => false;
+}
+
+/// Plain Nova text in the teal-hairline bubble (`NOVA_BUBBLE` in MessageList.tsx).
+Widget novaTextBubble(BuildContext context, String text) => NovaBubble(
+      child: NovaRichText(
+        text: text,
+        style: TextStyle(fontSize: 13.76, height: 1.5, color: context.tokens.ink),
+      ),
+    );
+
+/// A `summary` block / default text block: `rounded-[4px_16px_16px_16px] bg-soft`.
 Widget _summaryBubble(BuildContext context, String text) {
   final t = context.tokens;
   return Container(
     padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 9),
-    decoration: BoxDecoration(
-      color: t.soft,
-      borderRadius: const BorderRadius.only(
-        topLeft: Radius.circular(4),
-        topRight: Radius.circular(16),
-        bottomRight: Radius.circular(16),
-        bottomLeft: Radius.circular(16),
-      ),
-    ),
+    decoration: BoxDecoration(color: t.soft, borderRadius: _novaRadius),
     child: NovaRichText(
       text: text,
-      style: TextStyle(fontSize: 13.8, height: 1.4, color: t.ink),
+      style: TextStyle(fontSize: 13.76, height: 1.5, color: t.ink),
     ),
   );
 }
@@ -642,7 +710,7 @@ class _OtcMedications extends StatelessWidget {
     final t = context.tokens;
     return _BlockCard(
       icon: PhosphorIconsBold.pill,
-      label: 'Over the counter medication',
+      label: 'Over-the-counter options',
       body: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -797,7 +865,7 @@ class _LabTests extends StatelessWidget {
     final t = context.tokens;
     return _BlockCard(
       icon: PhosphorIconsBold.flask,
-      label: 'Lab tests',
+      label: 'Recommended tests',
       body: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,

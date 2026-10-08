@@ -28,6 +28,10 @@ class ChatService {
     return _asConversations(res.data);
   }
 
+  /// Cross-speciality conversation list, as My Care / the Health Timeline read
+  /// it (`GET /chat/conversations?limit=50`).
+  Future<List<ChatConversation>> listAll({int limit = 50}) => listRecent(limit: limit);
+
   Future<ChatConversation> createConversation(String specialitySlug) async {
     final res = await dio.post(
       '/chat/conversations',
@@ -38,20 +42,25 @@ class ChatService {
     );
   }
 
-  Future<({ChatConversation conversation, List<ChatMessage> messages})>
+  /// `journey` is the raw care-journey payload the backend may attach to the
+  /// conversation (normalised by `parseCareJourney`).
+  Future<({ChatConversation conversation, List<ChatMessage> messages, dynamic journey})>
   getConversation(String id) async {
     final res = await dio.get('/chat/conversations/$id');
     final data = Map<String, dynamic>.from(res.data as Map);
-    final conversation = ChatConversation.fromJson(
-      Map<String, dynamic>.from(data['conversation'] as Map),
-    );
+    final convJson = Map<String, dynamic>.from(data['conversation'] as Map);
+    final conversation = ChatConversation.fromJson(convJson);
     final messages = (data['messages'] is List)
         ? (data['messages'] as List)
               .whereType<Map>()
               .map((m) => ChatMessage.fromJson(Map<String, dynamic>.from(m)))
               .toList()
         : <ChatMessage>[];
-    return (conversation: conversation, messages: messages);
+    return (
+      conversation: conversation,
+      messages: messages,
+      journey: convJson['journey'],
+    );
   }
 
   Future<ChatConversation> renameConversation(String id, String title) async {

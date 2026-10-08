@@ -9,6 +9,20 @@ class ChatConversation {
   final String createdAt;
   final bool blocksEnabled;
 
+  /// Latest known care-journey stage, when the backend includes it on the
+  /// conversations LIST endpoint. Absent/null means unknown — treated as still
+  /// active, never hidden as "previous".
+  final String? currentStage;
+
+  /// How this consultation is being handled — `agent` (Nova/AI) or `offline`.
+  /// Every conversation today is Nova-driven, so this defaults to `agent`.
+  final String mode;
+
+  /// The care journey's "Complaint" stage summary ("Cold", "Chest pain on
+  /// exertion"), mirrored onto the conversations LIST endpoint so the health
+  /// timeline can show it without fetching every full journey.
+  final String? complaintSummary;
+
   const ChatConversation({
     required this.id,
     required this.sessionId,
@@ -17,9 +31,17 @@ class ChatConversation {
     required this.lastMessageAt,
     required this.createdAt,
     required this.blocksEnabled,
+    this.currentStage,
+    this.mode = 'agent',
+    this.complaintSummary,
   });
 
   factory ChatConversation.fromJson(Map<String, dynamic> json) {
+    String? opt(dynamic v) {
+      final s = v?.toString();
+      return (s == null || s.isEmpty) ? null : s;
+    }
+
     return ChatConversation(
       id: (json['id'] ?? json['_id'] ?? '').toString(),
       sessionId: (json['sessionId'] ?? '') as String,
@@ -29,6 +51,9 @@ class ChatConversation {
           (json['lastMessageAt'] ?? json['createdAt'] ?? '') as String,
       createdAt: (json['createdAt'] ?? '') as String,
       blocksEnabled: json['blocksEnabled'] == true,
+      currentStage: opt(json['currentStage']),
+      mode: json['mode'] == 'offline' ? 'offline' : 'agent',
+      complaintSummary: opt(json['complaintSummary']),
     );
   }
 
@@ -41,8 +66,15 @@ class ChatConversation {
       lastMessageAt: lastMessageAt ?? this.lastMessageAt,
       createdAt: createdAt,
       blocksEnabled: blocksEnabled,
+      currentStage: currentStage,
+      mode: mode,
+      complaintSummary: complaintSummary,
     );
   }
+
+  /// A conversation counts as "active" care unless the backend has explicitly
+  /// said otherwise (`currentStage == 'resolved'`). Mirrors `isActiveCare`.
+  bool get isActiveCare => currentStage != 'resolved';
 }
 
 // ─── Structured response blocks (general-medicine only) ──────────────────────
@@ -124,6 +156,13 @@ abstract class MessageBlock {
                   .toList()
             : <LabTest>[];
         return LabTestsBlock(tests);
+      case 'question':
+        return QuestionBlock(
+          question: data['question']?.toString().trim() ?? '',
+          options: strList(data['options'])
+              .where((o) => o.trim().isNotEmpty)
+              .toList(),
+        );
       case 'follow_up_questions':
         return FollowUpQuestionsBlock(strList(data['questions']));
       default:
@@ -207,6 +246,14 @@ class LabTest {
 class LabTestsBlock extends MessageBlock {
   final List<LabTest> tests;
   const LabTestsBlock(this.tests) : super('lab_tests');
+}
+
+/// One question with tappable quick-reply answers (dealt as a deck of cards).
+class QuestionBlock extends MessageBlock {
+  final String question;
+  final List<String> options;
+  const QuestionBlock({required this.question, required this.options})
+    : super('question');
 }
 
 class FollowUpQuestionsBlock extends MessageBlock {

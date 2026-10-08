@@ -20,8 +20,18 @@ class DoctorSummaryCta extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(14, 0, 14, 6),
+    // Pinned to the bottom of the thread itself: a soft top fade (`to_top, card 55%,
+    // transparent`) keeps it from looking like it floats over the composer.
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 24, 14, 10),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.bottomCenter,
+          end: Alignment.topCenter,
+          colors: [t.card, t.card.withValues(alpha: 0)],
+          stops: const [0.55, 1],
+        ),
+      ),
       child: GestureDetector(
         onTap: loading ? null : onTap,
         behavior: HitTestBehavior.opaque,
@@ -30,9 +40,10 @@ class DoctorSummaryCta extends StatelessWidget {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
             decoration: BoxDecoration(
-              color: AppColors.teal.withValues(alpha: 0.08),
+              color: t.card,
               borderRadius: BorderRadius.circular(14),
               border: Border.all(color: AppColors.teal.withValues(alpha: 0.35)),
+              boxShadow: [BoxShadow(color: const Color(0x1A0F172A), blurRadius: 14, offset: const Offset(0, 6))],
             ),
             child: Row(
               children: [

@@ -1,7 +1,7 @@
 name: enervara
 description: "Enervara — hospital-grade care, zero waiting rooms. Mobile app."
 publish_to: 'none'
-version: 1.0.0+12
+version: 1.0.0+13
 
 environment:
   sdk: ^3.9.2
@@ -85,4 +85,6 @@ flutter:
   assets:
     - assets/images/
     - assets/images/specialities/
+    - assets/images/nova/
+    - assets/images/nova/leaves/
     - assets/data/

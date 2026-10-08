@@ -13,14 +13,16 @@ import 'onboarding_provider.dart';
 
 final authServiceProvider = Provider((ref) => const AuthService());
 
-final authProvider =
-    StateNotifierProvider<AuthController, AuthState>((ref) => AuthController(ref));
+final authProvider = StateNotifierProvider<AuthController, AuthState>(
+  (ref) => AuthController(ref),
+);
 
 class AuthState {
   final User? user;
   final bool isAuthenticated;
   final bool isHydrated;
   final bool isLoading;
+  final bool isFreshLogin;
   final String? error;
   final String? pendingSignupEmail;
 
@@ -29,6 +31,7 @@ class AuthState {
     this.isAuthenticated = false,
     this.isHydrated = false,
     this.isLoading = false,
+    this.isFreshLogin = false,
     this.error,
     this.pendingSignupEmail,
   });
@@ -39,6 +42,7 @@ class AuthState {
     bool? isAuthenticated,
     bool? isHydrated,
     bool? isLoading,
+    bool? isFreshLogin,
     String? error,
     bool clearError = false,
     String? pendingSignupEmail,
@@ -49,8 +53,11 @@ class AuthState {
       isAuthenticated: isAuthenticated ?? this.isAuthenticated,
       isHydrated: isHydrated ?? this.isHydrated,
       isLoading: isLoading ?? this.isLoading,
+      isFreshLogin: isFreshLogin ?? this.isFreshLogin,
       error: clearError ? null : (error ?? this.error),
-      pendingSignupEmail: clearPending ? null : (pendingSignupEmail ?? this.pendingSignupEmail),
+      pendingSignupEmail: clearPending
+          ? null
+          : (pendingSignupEmail ?? this.pendingSignupEmail),
     );
   }
 }
@@ -70,10 +77,14 @@ class AuthController extends StateNotifier<AuthState> {
     state = state.copyWith(isHydrated: true);
   }
 
-  Future<void> _hydrateUser() async {
+  Future<void> _hydrateUser({bool isFreshLogin = false}) async {
     try {
       final user = await _service.fetchMe();
-      state = state.copyWith(user: user, isAuthenticated: true);
+      state = state.copyWith(
+        user: user,
+        isAuthenticated: true,
+        isFreshLogin: isFreshLogin,
+      );
       // Fire-and-forget onboarding load (mirrors authStore.fetchMe).
       unawaited(_ref.read(onboardingProvider.notifier).load());
       // Register this device for push notifications now that we have a
@@ -99,7 +110,7 @@ class AuthController extends StateNotifier<AuthState> {
       // update — setting isAuthenticated here first would let the router
       // see "authenticated, user still null" and briefly route as if the
       // account were brand-new (flashing the onboarding screen).
-      await _hydrateUser();
+      await _hydrateUser(isFreshLogin: true);
     } catch (e) {
       state = state.copyWith(error: _msg(e));
       rethrow;
@@ -121,7 +132,7 @@ class AuthController extends StateNotifier<AuthState> {
       if (idToken == null) return false; // user canceled the picker
       final result = await _service.google(idToken);
       await TokenStore.instance.save(result.token);
-      await _hydrateUser();
+      await _hydrateUser(isFreshLogin: true);
       return true;
     } catch (e) {
       state = state.copyWith(error: _msg(e));
@@ -162,7 +173,7 @@ class AuthController extends StateNotifier<AuthState> {
       final t = await _service.verifySignup(token);
       await TokenStore.instance.save(t);
       state = state.copyWith(clearPending: true);
-      await _hydrateUser();
+      await _hydrateUser(isFreshLogin: true);
     } catch (e) {
       state = state.copyWith(error: _msg(e));
       rethrow;
@@ -207,6 +218,12 @@ class AuthController extends StateNotifier<AuthState> {
       rethrow;
     } finally {
       state = state.copyWith(isLoading: false);
+    }
+  }
+
+  void consumeFreshLogin() {
+    if (state.isFreshLogin) {
+      state = state.copyWith(isFreshLogin: false);
     }
   }
 

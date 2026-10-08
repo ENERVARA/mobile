@@ -26,6 +26,11 @@ bool isRenderableBlock(MessageBlock block) {
   if (block is KeyPointsBlock) return block.points.isNotEmpty;
   if (block is OtcMedicationsBlock) return block.medications.isNotEmpty;
   if (block is LabTestsBlock) return block.tests.isNotEmpty;
+  // Unlike follow_up_questions, this block IS shown: the options are the
+  // interaction, so hiding it would remove the only way to answer.
+  if (block is QuestionBlock) {
+    return _hasText(block.question) || block.options.isNotEmpty;
+  }
   if (block is FollowUpQuestionsBlock) return false;
   if (block is UnknownBlock) return _hasText(block.text);
   return false;
@@ -44,6 +49,12 @@ String blockPlainText(MessageBlock block) {
   }
   if (block is FollowUpQuestionsBlock && block.questions.isNotEmpty) {
     parts.add(block.questions.join('\n'));
+  }
+  // `question` carries its prompt under a distinct key so that a question-only
+  // turn still yields readable fallback text.
+  if (block is QuestionBlock) {
+    if (_hasText(block.question)) parts.add(block.question.trim());
+    if (block.options.isNotEmpty) parts.add(block.options.join('\n'));
   }
   if (block is KeyPointsBlock && block.points.isNotEmpty) {
     parts.add(block.points.join('\n'));
